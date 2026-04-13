@@ -95,6 +95,32 @@ Entry format:
 
 ---
 
+## [2026-04-13] — Phase 4: AI MCQ Generation
+
+- **What was built:** Server-side quiz generation from material text → structured MCQs via Gemini → persisted quizzes and questions → collapsible preview UI per material.
+- **Files created/modified:**
+  - `app/api/generate-quiz/route.ts` — auth check, rate limit, Gemini call, persistence
+  - `lib/ai/schemas.ts` — Zod `questionSchema` / `quizSchema`
+  - `components/quiz/generate-quiz-button.tsx` — client button with loading + error states
+  - `components/quiz/quiz-preview-card.tsx` — collapsible quiz with per-question reveal
+  - `components/courses/material-card.tsx` — surfaces quizzes under each material
+  - `app/(app)/courses/[id]/page.tsx` — fetches quizzes + questions for each material
+  - `types/database.ts` — quizzes + questions tables
+  - `package.json` — added `@ai-sdk/google`, `ai`, `zod`
+- **Decisions made:**
+  - **Model:** `gemini-3-flash-preview` via `@ai-sdk/google` (newer than the plan's `gemini-2.0-flash`; plan + CLAUDE.md updated to reflect).
+  - Used Vercel AI SDK `generateObject` with Zod schema for guaranteed shape — no brittle JSON parsing.
+  - Prompt inlined in the route rather than split into `lib/ai/prompts.ts` — only one caller, extraction was premature.
+  - **Rate limit:** 1 generation per material per 60 s (checked against latest quiz row `created_at`). No cross-material limit.
+  - Raw text truncated to 15k chars before sending to keep token usage bounded.
+  - Questions stored with a `position` column so UI ordering is deterministic on reload.
+- **Known issues / TODOs:**
+  - Dashboard "Quizzes taken" still hardcoded to 0 — wired in Phase 6.
+  - No regeneration / "try again" UX — user must wait out the 60 s rate limit.
+- **Commit:** `c8d1d1d` — "Phase 4 Quiz"
+
+---
+
 ## [2026-04-13] — Phase 5: Quiz Taking + Sticky Notes + ELI5 + Results
 
 - **What was built:** Full quiz-taking flow — one question at a time, answer selection, navigation (next/previous/dot-grid). Sticky notes panel (floating, collapsible, debounced auto-save). On submit: `quiz_attempts` + `answer_records` persisted via server actions. Results screen: score summary, per-topic breakdown (planned extension — see `docs/PHASE5_EXTENSIONS.md`), per-question correct/incorrect breakdown with explanations, ELI5 streaming via Gemini. Past attempts list (collapsible) inside QuizPreviewCard.
@@ -171,29 +197,3 @@ Entry format:
 - **Known issues / TODOs:** None — `npm run build` clean.
 - **Branch:** `phase-6-analytics`
 - **Commit:** `feat(phase-6): analytics dashboard with ai insights`
-
----
-
-## [2026-04-13] — Phase 4: AI MCQ Generation
-
-- **What was built:** Server-side quiz generation from material text → structured MCQs via Gemini → persisted quizzes and questions → collapsible preview UI per material.
-- **Files created/modified:**
-  - `app/api/generate-quiz/route.ts` — auth check, rate limit, Gemini call, persistence
-  - `lib/ai/schemas.ts` — Zod `questionSchema` / `quizSchema`
-  - `components/quiz/generate-quiz-button.tsx` — client button with loading + error states
-  - `components/quiz/quiz-preview-card.tsx` — collapsible quiz with per-question reveal
-  - `components/courses/material-card.tsx` — surfaces quizzes under each material
-  - `app/(app)/courses/[id]/page.tsx` — fetches quizzes + questions for each material
-  - `types/database.ts` — quizzes + questions tables
-  - `package.json` — added `@ai-sdk/google`, `ai`, `zod`
-- **Decisions made:**
-  - **Model:** `gemini-3-flash-preview` via `@ai-sdk/google` (newer than the plan's `gemini-2.0-flash`; plan + CLAUDE.md updated to reflect).
-  - Used Vercel AI SDK `generateObject` with Zod schema for guaranteed shape — no brittle JSON parsing.
-  - Prompt inlined in the route rather than split into `lib/ai/prompts.ts` — only one caller, extraction was premature.
-  - **Rate limit:** 1 generation per material per 60 s (checked against latest quiz row `created_at`). No cross-material limit.
-  - Raw text truncated to 15k chars before sending to keep token usage bounded.
-  - Questions stored with a `position` column so UI ordering is deterministic on reload.
-- **Known issues / TODOs:**
-  - Dashboard "Quizzes taken" still hardcoded to 0 — real counter lands with Phase 5 attempts or Phase 10 polish.
-  - No regeneration / "try again" UX — user must wait out the 60 s rate limit.
-- **Commit:** `c8d1d1d` — "Phase 4 Quiz"
