@@ -7,10 +7,15 @@ import { NextRequest, NextResponse } from "next/server";
 // gemini-embedding-001: stable, 3072-dim, supports embedContent (not batchEmbedContents)
 const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
 
-const MAX_TEXT_CHARS = 20_000; // per material — keeps embedding cost bounded
-const CHUNK_SIZE = 500;
-const CHUNK_OVERLAP = 100;
-const EMBED_CONCURRENCY = 5; // parallel embed calls (gemini-embedding-001 has no batch endpoint)
+// Larger chunks → fewer API calls → fewer 429s on free-tier RPM limits
+const MAX_TEXT_CHARS = 15_000; // per material
+const CHUNK_SIZE = 1_500;      // ~1 API call per 1500 chars
+const CHUNK_OVERLAP = 150;
+const DELAY_MS = 500;          // wait between each embed call to stay under ~5 RPM
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 /**
  * GET /api/embed-course?courseId=X
@@ -30,7 +35,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "courseId required" }, { status: 400 });
   }
 
-  // Verify course ownership
   const { data: course } = await supabase
     .from("courses")
     .select("id")
@@ -40,7 +44,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
-  // Count existing chunks
   const { count } = await supabase
     .from("material_chunks")
     .select("id", { count: "exact", head: true })
@@ -55,8 +58,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/embed-course
  * Body: { courseId: string }
- * Chunks all materials in the course, embeds them with Gemini text-embedding-004,
- * and upserts into material_chunks. Idempotent — existing chunks are deleted first.
+ * Chunks all materials, embeds sequentially with rate-limit delay, upserts into material_chunks.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -72,7 +74,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "courseId required" }, { status: 400 });
   }
 
-  // Verify course ownership
   const { data: course } = await supabase
     .from("courses")
     .select("id, name")
@@ -82,7 +83,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
-  // Fetch all materials
   const { data: materials } = await supabase
     .from("materials")
     .select("id, title, raw_text")
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Build all chunks across all materials
+  // Build chunks
   const allChunks: {
     material_id: string;
     course_id: string;
@@ -124,33 +124,34 @@ export async function POST(request: NextRequest) {
   }
 
   console.log(
-    `[embed-course] course="${course.name}" — ${materials.length} materials, ${allChunks.length} chunks`
+    `[embed-course] "${course.name}" — ${materials.length} materials, ${allChunks.length} chunks`
   );
 
-  // Embed chunks in parallel batches (gemini-embedding-001 only supports single embedContent)
-  const embeddings: number[][] = new Array(allChunks.length);
+  // Sequential embed with delay to respect free-tier RPM limits (~5 RPM)
+  const embeddings: number[][] = [];
   try {
-    for (let i = 0; i < allChunks.length; i += EMBED_CONCURRENCY) {
-      const slice = allChunks.slice(i, i + EMBED_CONCURRENCY);
-      const results = await Promise.all(
-        slice.map((chunk) =>
-          embed({ model: EMBEDDING_MODEL, value: chunk.content })
-        )
-      );
-      results.forEach((r, j) => {
-        embeddings[i + j] = r.embedding;
+    for (let i = 0; i < allChunks.length; i++) {
+      if (i > 0) await sleep(DELAY_MS);
+      const { embedding } = await embed({
+        model: EMBEDDING_MODEL,
+        value: allChunks[i].content,
       });
+      embeddings.push(embedding);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Embedding failed";
     console.error("[embed-course] Embedding error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // Surface 429 clearly so the UI can show a useful message
+    const status = msg.includes("429") || msg.toLowerCase().includes("quota") ? 429 : 500;
+    return NextResponse.json(
+      { error: status === 429 ? "Rate limit hit — wait 60 s and try again." : msg },
+      { status }
+    );
   }
 
-  // Delete old chunks for this course (idempotent re-embed)
+  // Delete old chunks then insert fresh
   await supabase.from("material_chunks").delete().eq("course_id", courseId);
 
-  // Insert new chunks with embeddings
   const rows = allChunks.map((chunk, i) => ({
     ...chunk,
     embedding: embeddings[i] as unknown as number[],
@@ -168,9 +169,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log(
-    `[embed-course] Done — ${rows.length} chunks embedded and saved for course ${courseId}`
-  );
-
+  console.log(`[embed-course] Done — ${rows.length} chunks saved`);
   return NextResponse.json({ chunksCreated: rows.length });
 }
