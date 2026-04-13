@@ -1,28 +1,37 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { createClient } from "@/lib/supabase/client";
+import type { Course } from "@/types/database";
 import { cn } from "@/lib/utils";
-import { BookOpen, LayoutDashboard, Plus } from "lucide-react";
+import { BookOpen, LayoutDashboard, Loader2, Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-const MOCK_COURSES = [
-  { id: "1", name: "Introduction to Statistics", materialCount: 4 },
-  { id: "2", name: "Data Structures & Algorithms", materialCount: 2 },
-  { id: "3", name: "Financial Accounting", materialCount: 6 },
-  { id: "4", name: "Microeconomics", materialCount: 3 },
-  { id: "5", name: "Machine Learning Fundamentals", materialCount: 1 },
-];
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("courses")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setCourses(data ?? []);
+        setLoading(false);
+      });
+  }, [pathname]); // re-fetch when route changes (e.g. after adding a course)
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Logo — visible on desktop (hidden on mobile since TopNav shows it) */}
       <div className="hidden h-14 items-center border-b border-border px-4 md:flex">
         <span className="font-semibold tracking-tight text-foreground">
           Cortex
@@ -30,45 +39,60 @@ export function AppSidebar() {
       </div>
 
       <ScrollArea className="flex-1 px-3 py-3">
-        {/* Main nav */}
         <nav className="mb-4 space-y-1">
-          <Link href="/dashboard">
-            <Button
-              variant={pathname === "/dashboard" ? "secondary" : "ghost"}
-              className="w-full justify-start gap-2 text-sm"
-            >
-              <LayoutDashboard className="h-4 w-4 shrink-0" />
-              Dashboard
-            </Button>
+          <Link
+            href="/dashboard"
+            className={cn(
+              buttonVariants({
+                variant: pathname === "/dashboard" ? "secondary" : "ghost",
+              }),
+              "w-full justify-start gap-2 text-sm"
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            Dashboard
           </Link>
         </nav>
 
         <Separator className="my-2" />
 
-        {/* Courses section */}
         <div className="mt-3">
           <div className="mb-2 flex items-center justify-between px-1">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Courses
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            <Link
+              href="/dashboard?new=1"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                "text-muted-foreground hover:text-foreground"
+              )}
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="sr-only">New course</span>
-            </Button>
+            </Link>
           </div>
 
-          <nav className="space-y-0.5">
-            {MOCK_COURSES.map((course) => {
-              const isActive = pathname === `/courses/${course.id}`;
-              return (
-                <Link key={course.id} href={`/courses/${course.id}`}>
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : courses.length === 0 ? (
+            <p className="px-1 py-3 text-xs text-muted-foreground">
+              No courses yet.
+            </p>
+          ) : (
+            <nav className="space-y-0.5">
+              {courses.map((course) => {
+                const isActive = pathname === `/courses/${course.id}`;
+                return (
+                  <Link
+                    key={course.id}
+                    href={`/courses/${course.id}`}
                     className={cn(
+                      buttonVariants({
+                        variant: isActive ? "secondary" : "ghost",
+                      }),
                       "w-full justify-start gap-2 text-sm h-auto py-2",
                       !isActive && "text-muted-foreground hover:text-foreground"
                     )}
@@ -77,17 +101,11 @@ export function AppSidebar() {
                     <span className="flex-1 truncate text-left">
                       {course.name}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto shrink-0 text-xs px-1.5 py-0"
-                    >
-                      {course.materialCount}
-                    </Badge>
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </div>
       </ScrollArea>
     </div>

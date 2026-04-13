@@ -1,12 +1,21 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopNav } from "@/components/top-nav";
+import { createClient } from "@/lib/supabase/server";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <TopNav />
+      <TopNav user={user} />
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar — desktop only; mobile uses sheet in TopNav */}
         <aside className="hidden w-60 shrink-0 border-r border-border md:block overflow-hidden">
           <AppSidebar />
         </aside>
