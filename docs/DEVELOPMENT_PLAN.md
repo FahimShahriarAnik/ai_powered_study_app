@@ -142,6 +142,7 @@ lib/supabase/middleware.ts                      # if server auth middleware need
   - **Notes display:** show saved notes from the attempt
 - Past attempts list per material with notes preserved.
 - **Commit:** `feat: quiz taking + sticky notes + eli5 + results`
+- **Extensions backlog:** `docs/PHASE5_EXTENSIONS.md` — per-topic results breakdown, time tracking, confidence rating, retry-wrong-answers.
 
 ## Phase 6 — Strengths/Weaknesses Analytics (CORE)  [NEXT]
 

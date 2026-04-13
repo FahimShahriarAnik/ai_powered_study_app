@@ -95,6 +95,35 @@ Entry format:
 
 ---
 
+## [2026-04-13] — Phase 5: Quiz Taking + Sticky Notes + ELI5 + Results
+
+- **What was built:** Full quiz-taking flow — one question at a time, answer selection, navigation (next/previous/dot-grid). Sticky notes panel (floating, collapsible, debounced auto-save). On submit: `quiz_attempts` + `answer_records` persisted via server actions. Results screen: score summary, per-topic breakdown (planned extension — see `docs/PHASE5_EXTENSIONS.md`), per-question correct/incorrect breakdown with explanations, ELI5 streaming via Gemini. Past attempts list (collapsible) inside QuizPreviewCard.
+- **Files created:**
+  - `app/(app)/courses/[id]/quiz/[quizId]/page.tsx` — server page; creates attempt row on load
+  - `app/(app)/courses/[id]/quiz/[quizId]/quiz-runner.tsx` — client runner UI
+  - `app/(app)/courses/[id]/quiz/[quizId]/results/[attemptId]/page.tsx` — results server page
+  - `app/(app)/courses/[id]/quiz/[quizId]/results/[attemptId]/results-client.tsx` — results UI + ELI5
+  - `components/quiz/sticky-notes-panel.tsx` — floating notes card
+  - `lib/actions/attempts.ts` — server actions: `updateAttemptNotes`, `submitQuizAttempt`
+  - `app/api/eli5/route.ts` — streaming Gemini ELI5 endpoint
+- **Files modified:**
+  - `types/database.ts` — added `quiz_attempts`, `answer_records` tables + `QuizWithAttempts` type
+  - `components/quiz/quiz-preview-card.tsx` — added "Take Quiz" button + past attempts collapsible
+  - `components/courses/material-card.tsx` — added `courseId` prop
+  - `app/(app)/courses/[id]/page.tsx` — fetches completed attempts alongside quizzes
+- **DB migration (run in Supabase):**
+  - Created `quiz_attempts` (id, quiz_id, user_id, score, total, notes, completed_at, created_at) with RLS
+  - Created `answer_records` (id, attempt_id, question_id, selected_index, is_correct, created_at) with RLS
+- **Decisions made:**
+  - Attempt created eagerly on page load (not on first answer). Abandoned attempts left as `completed_at = NULL`; the past-attempts UI filters to completed only. Acceptable orphan trade-off for simplicity.
+  - ELI5 not persisted to DB — streamed on demand, cached in component state for toggle; matches plan.
+  - Notes finalized at submit (server action receives final notes value) even though they are also debounce-saved during the quiz.
+  - ELI5 env var required: `GOOGLE_GENERATIVE_AI_API_KEY` in `.env.local` and Vercel env settings.
+- **Known issues / TODOs:** See `docs/PHASE5_EXTENSIONS.md` for planned enrichments (per-topic results breakdown, time tracking, confidence rating, retry-wrong-answers).
+- **Commit:** pending
+
+---
+
 ## [2026-04-13] — Phase 4: AI MCQ Generation
 
 - **What was built:** Server-side quiz generation from material text → structured MCQs via Gemini → persisted quizzes and questions → collapsible preview UI per material.
