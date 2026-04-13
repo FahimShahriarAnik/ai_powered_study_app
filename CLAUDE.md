@@ -45,7 +45,7 @@ Do NOT update `docs/DEVELOPMENT_LOG.md` automatically. Only update it when the u
 - **Framework:** Next.js 15 (App Router) + TypeScript
 - **Styling:** Tailwind CSS + shadcn/ui + `next-themes`
 - **Backend/Auth/DB:** Supabase (Postgres + Auth + Realtime + Storage)
-- **AI:** Vercel AI SDK + Google Gemini 2.0 Flash (using $300 GCP credits)
+- **AI:** Vercel AI SDK + Google Gemini Flash via `@ai-sdk/google` (currently `gemini-3-flash-preview`, using $300 GCP credits)
 - **Charts:** Recharts
 - **Hosting:** Vercel
 - **PDF parsing:** `pdf-parse` (Phase 3)

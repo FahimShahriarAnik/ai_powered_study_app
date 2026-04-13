@@ -2,43 +2,61 @@
 
 > Phases are sequential. Do NOT start a phase until the previous one is committed and confirmed working.
 
-## Folder Structure (target)
+## Current Status (as of 2026-04-13)
+
+| Phase | Status | Commit |
+|---|---|---|
+| 0 — Project Init | Done | `46090c0` |
+| 1 — Foundation & Layout | Done | `865a212` |
+| 2 — Auth & DB (email + guest) | Done | `010c1fe` |
+| 3 — Material Upload | Done | `697adcd` (+ `08782f8` fix) |
+| 4 — AI Quiz Generation | Done | `c8d1d1d` |
+| 5 — Quiz Taking & Results | **Next** | — |
+| 6–10 | Pending | — |
+
+**Deviations from original plan (carry forward):**
+- **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
+- **Phase 4:** model in use is `gemini-3-flash-preview` via `@ai-sdk/google`, not Gemini 2.0 Flash. Prompt is inlined in `app/api/generate-quiz/route.ts` — `lib/ai/prompts.ts` and `lib/ai/gemini.ts` were never created (unnecessary indirection at this scale).
+- Route grouping uses `app/(app)/` and `app/(auth)/` segment groups — differs from the flat tree originally sketched below but functionally equivalent.
+- Dashboard stats card shows hardcoded `0` for Materials and Quizzes — wire up to real counts during Phase 5 or Phase 10 polish.
+
+## Folder Structure (actual, as of Phase 4)
 
 ```
 /
 ├── app/
-│   ├── (auth)/login/page.tsx
-│   ├── (auth)/signup/page.tsx
-│   ├── dashboard/page.tsx
-│   ├── courses/[id]/page.tsx
-│   ├── courses/[id]/quiz/[quizId]/page.tsx
-│   ├── analytics/page.tsx
+│   ├── (app)/
+│   │   ├── layout.tsx
+│   │   ├── dashboard/page.tsx
+│   │   └── courses/[id]/page.tsx
+│   ├── (auth)/
+│   │   ├── layout.tsx
+│   │   ├── login/page.tsx
+│   │   └── signup/page.tsx
 │   ├── api/
 │   │   ├── generate-quiz/route.ts
-│   │   ├── chat/route.ts
 │   │   └── parse-pdf/route.ts
 │   ├── layout.tsx
-│   └── page.tsx
+│   ├── page.tsx
+│   └── globals.css
 ├── components/
-│   ├── ui/              # shadcn primitives
-│   ├── dashboard/
+│   ├── ui/                        # shadcn primitives
+│   ├── dashboard/new-course-dialog.tsx
+│   ├── courses/
+│   │   ├── material-card.tsx
+│   │   └── upload-material-dialog.tsx
 │   ├── quiz/
-│   ├── analytics/
-│   ├── upload/
+│   │   ├── generate-quiz-button.tsx
+│   │   └── quiz-preview-card.tsx
+│   ├── app-sidebar.tsx
+│   ├── top-nav.tsx
+│   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── lib/
-│   ├── supabase/
-│   │   ├── client.ts
-│   │   ├── server.ts
-│   │   └── middleware.ts
-│   ├── ai/
-│   │   ├── gemini.ts
-│   │   ├── prompts.ts
-│   │   └── schemas.ts
-│   ├── analytics/
+│   ├── supabase/{client,server}.ts
+│   ├── ai/schemas.ts
 │   └── utils.ts
-├── types/
-│   └── database.ts
+├── types/database.ts
 ├── docs/
 │   ├── CONTEXT.md
 │   ├── DEVELOPMENT_PLAN.md
@@ -47,7 +65,19 @@
 └── ...
 ```
 
-## Phase 0 — Project Initialization
+## Folder Structure — Additions expected in later phases
+
+```
+app/(app)/courses/[id]/quiz/[quizId]/page.tsx   # Phase 5
+app/(app)/analytics/page.tsx                    # Phase 6
+app/api/chat/route.ts                           # Phase 8
+components/analytics/*                          # Phase 6
+components/quiz/quiz-runner.tsx, notes-panel.tsx, results-screen.tsx  # Phase 5
+lib/analytics/*                                 # Phase 6
+lib/supabase/middleware.ts                      # if server auth middleware needed
+```
+
+## Phase 0 — Project Initialization  [DONE — commit `46090c0`]
 
 - `npx create-next-app@latest` (TS, Tailwind, App Router, ESLint).
 - `npx shadcn@latest init`.
@@ -57,7 +87,7 @@
 - Push to GitHub. Connect Vercel. Confirm blank deploy works.
 - **Commit:** `chore: init next.js + tailwind + shadcn + theme`
 
-## Phase 1 — Foundation & Layout
+## Phase 1 — Foundation & Layout  [DONE — commit `865a212`]
 
 - App shell: top nav (with theme toggle) + collapsible sidebar for course folders.
 - Dashboard page with mock courses (no DB yet).
@@ -66,7 +96,7 @@
 - Deploy to Vercel.
 - **Commit:** `feat: app shell with mock dashboard`
 
-## Phase 2 — Auth & Database
+## Phase 2 — Auth & Database  [DONE — commit `010c1fe` (Google OAuth dropped)]
 
 - Supabase project setup. Add env vars to Vercel.
 - Schema: `users` (managed by Supabase Auth), `courses`, `materials`.
@@ -79,7 +109,7 @@
 - Row Level Security (RLS) policies on every table — guest users isolated.
 - **Commit:** `feat: supabase auth (email/google/guest) + courses crud`
 
-## Phase 3 — Material Upload & Storage
+## Phase 3 — Material Upload & Storage  [DONE — commits `697adcd`, `08782f8`]
 
 - Upload PDF or paste text into a course.
 - **Limits:**
@@ -91,7 +121,7 @@
 - List materials inside course detail page (collapsible cards showing preview).
 - **Commit:** `feat: material upload + pdf parsing with limits`
 
-## Phase 4 — AI Quiz Generation (CORE)
+## Phase 4 — AI Quiz Generation (CORE)  [DONE — commit `c8d1d1d`]
 
 - Server action: take material text → Gemini 2.0 Flash → structured JSON of MCQs.
 - Use Vercel AI SDK `generateObject` with Zod schema: `{ question, options[4], correct_index, topic, difficulty (easy|medium|hard), explanation }`.
@@ -100,7 +130,7 @@
 - UI: "Generate Quiz" button per material → loading state → quiz preview (collapsible per question).
 - **Commit:** `feat: ai mcq generation`
 
-## Phase 5 — Quiz Taking & Results (CORE)
+## Phase 5 — Quiz Taking & Results (CORE)  [DONE — commits pending]
 
 - Quiz UI: one question at a time, select answer, next.
 - **Sticky notes panel:** floating note card top-right (collapsible to icon). Free-text. Auto-saves to `quiz_attempts.notes` on every keystroke (debounced 500ms).
@@ -113,7 +143,7 @@
 - Past attempts list per material with notes preserved.
 - **Commit:** `feat: quiz taking + sticky notes + eli5 + results`
 
-## Phase 6 — Strengths/Weaknesses Analytics (CORE)
+## Phase 6 — Strengths/Weaknesses Analytics (CORE)  [NEXT]
 
 - `/analytics` page: per-topic mastery scores, trends over time.
 - **Trigger logic:** insights surface after **3+ completed quizzes** (not weekly). Empty state before that: "Take 3 quizzes to unlock insights."

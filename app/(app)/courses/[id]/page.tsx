@@ -1,7 +1,7 @@
 import { MaterialCard } from "@/components/courses/material-card";
 import { UploadMaterialDialog } from "@/components/courses/upload-material-dialog";
 import { createClient } from "@/lib/supabase/server";
-import type { QuizWithQuestions } from "@/types/database";
+import type { QuizAttempt, QuizWithAttempts } from "@/types/database";
 import { BookOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 
@@ -29,9 +29,8 @@ export default async function CoursePage({
 
   const materialList = materials ?? [];
 
-  // Fetch all quizzes + questions for this course's materials in one go
   const materialIds = materialList.map((m) => m.id);
-  let quizzesByMaterial: Record<string, QuizWithQuestions[]> = {};
+  const quizzesByMaterial: Record<string, QuizWithAttempts[]> = {};
 
   if (materialIds.length > 0) {
     const { data: quizzes } = await supabase
@@ -40,15 +39,40 @@ export default async function CoursePage({
       .in("material_id", materialIds)
       .order("created_at", { ascending: false });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const quizIds = ((quizzes ?? []) as any[]).map((q) => q.id as string);
+
+    let attemptsByQuiz: Record<string, QuizAttempt[]> = {};
+    if (quizIds.length > 0) {
+      const { data: attempts } = await supabase
+        .from("quiz_attempts")
+        .select("*")
+        .in("quiz_id", quizIds)
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false });
+
+      attemptsByQuiz = ((attempts ?? []) as QuizAttempt[]).reduce(
+        (acc, a) => {
+          (acc[a.quiz_id] ??= []).push(a);
+          return acc;
+        },
+        {} as Record<string, QuizAttempt[]>
+      );
+    }
+
     if (quizzes) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const quiz of quizzes as any[]) {
         const mid = quiz.material_id as string;
-        if (!quizzesByMaterial[mid]) quizzesByMaterial[mid] = [];
-        const sorted = [...(quiz.questions as QuizWithQuestions["questions"])].sort(
-          (a, b) => a.position - b.position
-        );
-        quizzesByMaterial[mid].push({ ...quiz, questions: sorted } as QuizWithQuestions);
+        (quizzesByMaterial[mid] ??= []);
+        const sorted = [
+          ...(quiz.questions as QuizWithAttempts["questions"]),
+        ].sort((a, b) => a.position - b.position);
+        quizzesByMaterial[mid].push({
+          ...quiz,
+          questions: sorted,
+          attempts: attemptsByQuiz[quiz.id] ?? [],
+        } as QuizWithAttempts);
       }
     }
   }
@@ -87,6 +111,7 @@ export default async function CoursePage({
               key={material.id}
               material={material}
               quizzes={quizzesByMaterial[material.id] ?? []}
+              courseId={course.id}
             />
           ))}
         </div>

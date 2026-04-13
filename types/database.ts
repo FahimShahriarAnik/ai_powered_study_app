@@ -126,6 +126,66 @@ export interface Database {
         };
         Relationships: [];
       };
+      quiz_attempts: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          user_id: string;
+          score: number | null;
+          total: number;
+          notes: string;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          quiz_id: string;
+          user_id: string;
+          score?: number | null;
+          total: number;
+          notes?: string;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          quiz_id?: string;
+          user_id?: string;
+          score?: number | null;
+          total?: number;
+          notes?: string;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      answer_records: {
+        Row: {
+          id: string;
+          attempt_id: string;
+          question_id: string;
+          selected_index: number;
+          is_correct: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          attempt_id: string;
+          question_id: string;
+          selected_index: number;
+          is_correct: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          attempt_id?: string;
+          question_id?: string;
+          selected_index?: number;
+          is_correct?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -138,5 +198,11 @@ export type Course = Database["public"]["Tables"]["courses"]["Row"];
 export type Material = Database["public"]["Tables"]["materials"]["Row"];
 export type Quiz = Database["public"]["Tables"]["quizzes"]["Row"];
 export type Question = Database["public"]["Tables"]["questions"]["Row"];
+export type QuizAttempt = Database["public"]["Tables"]["quiz_attempts"]["Row"];
+export type AnswerRecord = Database["public"]["Tables"]["answer_records"]["Row"];
 
 export type QuizWithQuestions = Quiz & { questions: Question[] };
+export type QuizWithAttempts = Quiz & {
+  questions: Question[];
+  attempts: QuizAttempt[];
+};

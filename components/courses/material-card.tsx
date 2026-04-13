@@ -9,16 +9,17 @@ import {
 import { GenerateQuizButton } from "@/components/quiz/generate-quiz-button";
 import { QuizPreviewCard } from "@/components/quiz/quiz-preview-card";
 import { cn } from "@/lib/utils";
-import type { Material, QuizWithQuestions } from "@/types/database";
+import type { Material, QuizWithAttempts } from "@/types/database";
 import { ChevronDown, FileText } from "lucide-react";
 import { useState } from "react";
 
 interface Props {
   material: Material;
-  quizzes: QuizWithQuestions[];
+  quizzes: QuizWithAttempts[];
+  courseId: string;
 }
 
-export function MaterialCard({ material, quizzes }: Props) {
+export function MaterialCard({ material, quizzes, courseId }: Props) {
   const [open, setOpen] = useState(false);
 
   const preview = material.raw_text.slice(0, 300).trim();
@@ -88,7 +89,7 @@ export function MaterialCard({ material, quizzes }: Props) {
           </p>
           <div className="space-y-2">
             {quizzes.map((quiz) => (
-              <QuizPreviewCard key={quiz.id} quiz={quiz} />
+              <QuizPreviewCard key={quiz.id} quiz={quiz} courseId={courseId} />
             ))}
           </div>
         </div>
