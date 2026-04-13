@@ -37,6 +37,7 @@ _(populated as phases progress)_
 - [ ] **Surface the weak/medium/strong plan in UI** — The API returns `plan: { weakCount, mediumCount, strongCount, fallback }` but the UI doesn't show it. Could render a tiny pill in the dialog after generation ("This quiz: 6 weak · 3 medium · 1 strong"). Good demo-tell for judges.
 - [ ] **Analytics-page "jump to weakest topic"** — The CTA in the insights card is material-picker based. A nicer flow would pre-filter materials to those whose past questions hit the user's weakest topic. Requires extra query (quiz → material) joined on questions.topic.
 - [ ] **Different rate-limit for Smart Quiz** — Currently shares the 60s/material quiz rate limit. Consider a per-user global rate limit (e.g. 1 smart quiz / 2 min) since Smart Quiz costs more tokens than a regular quiz.
+- [ ] **User-controlled weak/medium/strong mix** — Let the user adjust the 60/30/10 distribution in the Smart Quiz dialog (e.g. three sliders or a simple preset selector: "Focus weak", "Balanced", "Challenge me"). Current split is hardcoded in `lib/analytics/user-stats.ts` `planSmartQuiz()`. Pass the chosen counts through the API body and thread them through `planSmartQuiz` / `buildSmartQuizPromptContext`. UX note: sliders should be constrained to sum = `questionCount` and each bucket should have a minimum of 0.
 
 ---
 
