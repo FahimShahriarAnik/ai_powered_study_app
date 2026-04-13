@@ -15,3 +15,18 @@ export const quizSchema = z.object({
 
 export type QuestionSchema = z.infer<typeof questionSchema>;
 export type QuizSchema = z.infer<typeof quizSchema>;
+
+export const analyticsInsightSchema = z.object({
+  weakest: z.object({
+    topic: z.string(),
+    accuracy: z.number().min(0).max(1),
+  }),
+  strongest: z.object({
+    topic: z.string(),
+    accuracy: z.number().min(0).max(1),
+  }),
+  summary: z.string().max(400),
+  recommendation: z.string().max(200),
+});
+
+export type AnalyticsInsightSchema = z.infer<typeof analyticsInsightSchema>;

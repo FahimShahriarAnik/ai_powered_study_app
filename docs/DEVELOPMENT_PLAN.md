@@ -11,48 +11,68 @@
 | 2 — Auth & DB (email + guest) | Done | `010c1fe` |
 | 3 — Material Upload | Done | `697adcd` (+ `08782f8` fix) |
 | 4 — AI Quiz Generation | Done | `c8d1d1d` |
-| 5 — Quiz Taking & Results | **Next** | — |
-| 6–10 | Pending | — |
+| 5 — Quiz Taking & Results | Done | (phase-5 branch) |
+| 6 — Analytics | Done | (phase-6-analytics branch) |
+| 7–10 | Pending | — |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
 - **Phase 4:** model in use is `gemini-3-flash-preview` via `@ai-sdk/google`, not Gemini 2.0 Flash. Prompt is inlined in `app/api/generate-quiz/route.ts` — `lib/ai/prompts.ts` and `lib/ai/gemini.ts` were never created (unnecessary indirection at this scale).
 - Route grouping uses `app/(app)/` and `app/(auth)/` segment groups — differs from the flat tree originally sketched below but functionally equivalent.
-- Dashboard stats card shows hardcoded `0` for Materials and Quizzes — wire up to real counts during Phase 5 or Phase 10 polish.
+- Dashboard stats card shows hardcoded `0` for Materials and Quizzes — **wired in Phase 6**.
 
-## Folder Structure (actual, as of Phase 4)
+## Folder Structure (actual, as of Phase 6)
 
 ```
 /
 ├── app/
 │   ├── (app)/
 │   │   ├── layout.tsx
+│   │   ├── analytics/page.tsx                  # Phase 6
 │   │   ├── dashboard/page.tsx
-│   │   └── courses/[id]/page.tsx
+│   │   └── courses/[id]/
+│   │       ├── page.tsx
+│   │       └── quiz/[quizId]/
+│   │           ├── page.tsx                    # Phase 5
+│   │           ├── quiz-runner.tsx             # Phase 5
+│   │           └── results/[attemptId]/        # Phase 5
 │   ├── (auth)/
 │   │   ├── layout.tsx
 │   │   ├── login/page.tsx
 │   │   └── signup/page.tsx
 │   ├── api/
+│   │   ├── analytics/insights/route.ts         # Phase 6
+│   │   ├── eli5/route.ts                       # Phase 5
 │   │   ├── generate-quiz/route.ts
 │   │   └── parse-pdf/route.ts
 │   ├── layout.tsx
 │   ├── page.tsx
 │   └── globals.css
 ├── components/
-│   ├── ui/                        # shadcn primitives
+│   ├── ui/                        # shadcn primitives (+ tooltip Phase 6)
+│   ├── analytics/                              # Phase 6
+│   │   ├── ai-insights-card.tsx
+│   │   ├── empty-state.tsx
+│   │   ├── rolling-accuracy-chart.tsx
+│   │   ├── topic-accuracy-chart.tsx
+│   │   └── topic-difficulty-heatmap.tsx
 │   ├── dashboard/new-course-dialog.tsx
 │   ├── courses/
 │   │   ├── material-card.tsx
 │   │   └── upload-material-dialog.tsx
 │   ├── quiz/
 │   │   ├── generate-quiz-button.tsx
-│   │   └── quiz-preview-card.tsx
+│   │   ├── quiz-preview-card.tsx
+│   │   └── sticky-notes-panel.tsx             # Phase 5
 │   ├── app-sidebar.tsx
 │   ├── top-nav.tsx
 │   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── lib/
+│   ├── analytics/                             # Phase 6
+│   │   ├── aggregations.ts
+│   │   └── queries.ts
+│   ├── actions/attempts.ts                    # Phase 5
 │   ├── supabase/{client,server}.ts
 │   ├── ai/schemas.ts
 │   └── utils.ts
@@ -68,12 +88,7 @@
 ## Folder Structure — Additions expected in later phases
 
 ```
-app/(app)/courses/[id]/quiz/[quizId]/page.tsx   # Phase 5
-app/(app)/analytics/page.tsx                    # Phase 6
 app/api/chat/route.ts                           # Phase 8
-components/analytics/*                          # Phase 6
-components/quiz/quiz-runner.tsx, notes-panel.tsx, results-screen.tsx  # Phase 5
-lib/analytics/*                                 # Phase 6
 lib/supabase/middleware.ts                      # if server auth middleware needed
 ```
 

@@ -124,6 +124,56 @@ Entry format:
 
 ---
 
+## [2026-04-13] — Phase 6: Strengths/Weaknesses Analytics
+
+- **What was built:** `/analytics` page with topic accuracy bar chart, rolling accuracy line chart, topic×difficulty CSS-grid heatmap, and an AI-powered insights card (cached, refreshable). Dashboard Materials and Quizzes-taken stats wired to real DB counts. Analytics nav link added to sidebar.
+- **Files created:**
+  - `app/(app)/analytics/page.tsx` — server component, aggregates data, gates on 3+ completed attempts
+  - `app/api/analytics/insights/route.ts` — auth + rate-limit (1/min) + Gemini `generateObject` + upsert into `ai_insights`
+  - `lib/analytics/queries.ts` — `getUserAnalyticsData()`, single join fetching all analytics inputs
+  - `lib/analytics/aggregations.ts` — `topicAccuracy()`, `rollingAccuracy()`, `topicDifficultyMatrix()`, `buildTopicSummaryForPrompt()`
+  - `components/analytics/ai-insights-card.tsx` — client card with refresh button, staleness hint, disabled Phase 7 CTA with tooltip
+  - `components/analytics/empty-state.tsx` — progress bar toward 3-attempt unlock
+  - `components/analytics/topic-accuracy-chart.tsx` — Recharts BarChart, color-coded by performance tier
+  - `components/analytics/rolling-accuracy-chart.tsx` — Recharts LineChart, last 10 attempts, 70% reference line
+  - `components/analytics/topic-difficulty-heatmap.tsx` — CSS grid heatmap, no extra deps
+  - `components/ui/tooltip.tsx` — shadcn tooltip (base-ui backed)
+- **Files modified:**
+  - `types/database.ts` — added `ai_insights` table typings + `AiInsight`, `AiInsightContent` exports
+  - `lib/ai/schemas.ts` — added `analyticsInsightSchema` + `AnalyticsInsightSchema` type
+  - `components/app-sidebar.tsx` — added Analytics nav link with `BarChart3` icon
+  - `app/(app)/dashboard/page.tsx` — wired Materials and Quizzes-taken counts to real DB queries
+  - `app/layout.tsx` — wrapped app in `TooltipProvider`
+  - `package.json` / `package-lock.json` — added `recharts`
+- **Autonomous decisions:**
+  - **Heatmap as CSS `<table>`:** Recharts has no native heatmap; used Tailwind bg-opacity cells. Zero extra deps, theme-safe.
+  - **AI insights cached in `ai_insights` table (unique per user):** Better demo UX — instant load, no Gemini call on every visit. Staleness badge shows after 3 new attempts since last refresh.
+  - **No auto-regen on page load:** Regeneration always explicit (Refresh button click). Avoids unintended token spend.
+  - **base-ui tooltip `render` prop instead of `asChild`:** shadcn tooltip now uses `@base-ui/react` not Radix; `asChild` not supported. Used `render={<span />}` on `TooltipTrigger` to avoid nested `<button>` HTML invalidity.
+  - **Rolling window = 10 attempts:** Constant in `aggregations.ts` for easy tuning later.
+  - **Topics with < 2 answers excluded from bar chart:** Prevents single-answer noise from skewing weakest-topic detection.
+  - **Phase 7 CTA:** Disabled button with tooltip — UX story visible to judges without a broken click path.
+  - **Dashboard stats short-circuit:** `.in("course_id", [])` is invalid; used `Promise.resolve({ count: 0 })` when `courseIds` is empty.
+- **DB migration required (run in Supabase SQL editor before deploying):**
+  ```sql
+  create table ai_insights (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id) on delete cascade unique,
+    content jsonb not null,
+    attempts_at_refresh int not null,
+    updated_at timestamptz not null default now()
+  );
+  alter table ai_insights enable row level security;
+  create policy "ai_insights_select_own" on ai_insights for select using (auth.uid() = user_id);
+  create policy "ai_insights_insert_own" on ai_insights for insert with check (auth.uid() = user_id);
+  create policy "ai_insights_update_own" on ai_insights for update using (auth.uid() = user_id);
+  ```
+- **Known issues / TODOs:** None — `npm run build` clean.
+- **Branch:** `phase-6-analytics`
+- **Commit:** `feat(phase-6): analytics dashboard with ai insights`
+
+---
+
 ## [2026-04-13] — Phase 4: AI MCQ Generation
 
 - **What was built:** Server-side quiz generation from material text → structured MCQs via Gemini → persisted quizzes and questions → collapsible preview UI per material.

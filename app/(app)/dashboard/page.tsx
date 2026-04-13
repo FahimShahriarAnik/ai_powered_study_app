@@ -15,6 +15,10 @@ export default async function DashboardPage({
   const supabase = await createClient();
   const params = await searchParams;
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: courses } = await supabase
     .from("courses")
     .select("*")
@@ -22,6 +26,26 @@ export default async function DashboardPage({
 
   const courseList: Course[] = courses ?? [];
   const showNewDialog = params.new === "1";
+
+  // Wire up real counts
+  const courseIds = courseList.map((c) => c.id);
+  const [materialsResult, attemptsResult] = await Promise.all([
+    courseIds.length > 0
+      ? supabase
+          .from("materials")
+          .select("id", { count: "exact", head: true })
+          .in("course_id", courseIds)
+      : Promise.resolve({ count: 0 }),
+    user
+      ? supabase
+          .from("quiz_attempts")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .not("completed_at", "is", null)
+      : Promise.resolve({ count: 0 }),
+  ]);
+  const materialsCount = materialsResult.count ?? 0;
+  const quizzesTakenCount = attemptsResult.count ?? 0;
 
   return (
     <div className="p-6">
@@ -41,8 +65,8 @@ export default async function DashboardPage({
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {[
           { label: "Courses", value: courseList.length },
-          { label: "Materials", value: 0 },
-          { label: "Quizzes taken", value: 0 },
+          { label: "Materials", value: materialsCount },
+          { label: "Quizzes taken", value: quizzesTakenCount },
         ].map(({ label, value }) => (
           <Card key={label} className="p-4">
             <p className="text-xs text-muted-foreground">{label}</p>

@@ -186,6 +186,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      ai_insights: {
+        Row: {
+          id: string;
+          user_id: string;
+          content: {
+            weakest: { topic: string; accuracy: number };
+            strongest: { topic: string; accuracy: number };
+            summary: string;
+            recommendation: string;
+          };
+          attempts_at_refresh: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          content: {
+            weakest: { topic: string; accuracy: number };
+            strongest: { topic: string; accuracy: number };
+            summary: string;
+            recommendation: string;
+          };
+          attempts_at_refresh: number;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          content?: {
+            weakest: { topic: string; accuracy: number };
+            strongest: { topic: string; accuracy: number };
+            summary: string;
+            recommendation: string;
+          };
+          attempts_at_refresh?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -206,3 +245,6 @@ export type QuizWithAttempts = Quiz & {
   questions: Question[];
   attempts: QuizAttempt[];
 };
+
+export type AiInsight = Database["public"]["Tables"]["ai_insights"]["Row"];
+export type AiInsightContent = AiInsight["content"];
