@@ -4,31 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/lib/supabase/client";
 import type { Course } from "@/types/database";
 import { cn } from "@/lib/utils";
-import { BookOpen, LayoutDashboard, Loader2, Plus } from "lucide-react";
+import { BookOpen, LayoutDashboard, Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
-export function AppSidebar() {
+interface Props {
+  courses: Course[];
+}
+
+export function AppSidebar({ courses }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("courses")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setCourses(data ?? []);
-        setLoading(false);
-      });
-  }, [pathname]); // re-fetch when route changes (e.g. after adding a course)
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -73,11 +60,7 @@ export function AppSidebar() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : courses.length === 0 ? (
+          {courses.length === 0 ? (
             <p className="px-1 py-3 text-xs text-muted-foreground">
               No courses yet.
             </p>

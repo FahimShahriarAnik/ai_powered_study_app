@@ -13,12 +13,13 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import type { Course } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
 import { Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "./app-sidebar";
 
-export function TopNav({ user }: { user: User | null }) {
+export function TopNav({ user, courses }: { user: User | null; courses: Course[] }) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -45,7 +46,7 @@ export function TopNav({ user }: { user: User | null }) {
             <span className="sr-only">Open menu</span>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
-            <AppSidebar />
+            <AppSidebar courses={courses} />
           </SheetContent>
         </Sheet>
 

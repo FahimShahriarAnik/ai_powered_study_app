@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Plus, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const MAX_TEXT_CHARS = 50_000;
 
@@ -28,6 +28,7 @@ export function UploadMaterialDialog({ courseId }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // PDF state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -38,11 +39,14 @@ export function UploadMaterialDialog({ courseId }: Props) {
   const [textContent, setTextContent] = useState("");
 
   function reset() {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setPdfFile(null);
     setPdfTitle("");
     setTextTitle("");
     setTextContent("");
     setError(null);
+    setLoading(false);
   }
 
   async function handlePdfUpload(e: React.FormEvent) {
@@ -50,15 +54,28 @@ export function UploadMaterialDialog({ courseId }: Props) {
     if (!pdfFile || !pdfTitle.trim()) return;
     setError(null);
     setLoading(true);
+    abortRef.current = new AbortController();
 
     const formData = new FormData();
     formData.append("file", pdfFile);
     formData.append("courseId", courseId);
     formData.append("title", pdfTitle.trim());
 
-    const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
-    const json = await res.json();
+    let res: Response;
+    try {
+      res = await fetch("/api/parse-pdf", {
+        method: "POST",
+        body: formData,
+        signal: abortRef.current.signal,
+      });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return; // user cancelled
+      setError("Upload failed. Check your connection.");
+      setLoading(false);
+      return;
+    }
 
+    const json = await res.json();
     if (!res.ok) {
       setError(json.error ?? "Upload failed.");
       setLoading(false);
