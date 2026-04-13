@@ -186,6 +186,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      material_chunks: {
+        Row: {
+          id: string;
+          material_id: string;
+          course_id: string;
+          content: string;
+          chunk_index: number;
+          // embedding column (vector(768)) intentionally omitted — never fetched to client
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          material_id: string;
+          course_id: string;
+          content: string;
+          chunk_index: number;
+          embedding?: number[]; // passed as number[] on insert
+          created_at?: string;
+        };
+        Update: {
+          embedding?: number[];
+        };
+        Relationships: [];
+      };
       ai_insights: {
         Row: {
           id: string;
@@ -245,6 +269,8 @@ export type QuizWithAttempts = Quiz & {
   questions: Question[];
   attempts: QuizAttempt[];
 };
+
+export type MaterialChunk = Database["public"]["Tables"]["material_chunks"]["Row"];
 
 export type AiInsight = Database["public"]["Tables"]["ai_insights"]["Row"];
 export type AiInsightContent = AiInsight["content"];

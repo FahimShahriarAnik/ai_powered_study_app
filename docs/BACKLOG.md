@@ -72,3 +72,37 @@ _(populated as phases progress)_
 | `SmartQuizDialog` fetches materials+courses via two separate queries, joined client-side | Supabase's typed join inference produced `never` because `Database.Tables.materials.Relationships: []` is empty. Rather than retyping the whole schema, a second tiny query + Map join is the minimal fix. |
 | No new DB tables or migrations | Phase 7 is purely read-side on `answer_records`/`questions` + reuse of `quizzes`/`questions` insert. Zero schema change. |
 | `"adaptive"` difficulty badge color not added to `QuizPreviewCard` DIFF_COLORS map | Falls through to the `mixed` blue color — acceptable for demo; open TODO listed below. |
+
+---
+
+## Phase 8 — RAG Study Coach: Known TODOs / Polish items (defer to Phase 10)
+
+- [ ] **Re-embed on new material upload** — Currently the user must manually click "Re-index" (RefreshCw button) to embed new materials added after the initial index. Could auto-trigger embedding after a successful upload.
+- [ ] **Per-material embedding status** — Currently all materials in a course are embedded together; no indication of which materials are indexed. A per-material "Indexed / Not indexed" badge would improve UX.
+- [ ] **Chat history persistence** — Chat history lives in component state; it resets when the sheet closes. Persisting to `localStorage` (keyed by course id) would let users pick up where they left off.
+- [ ] **Stream abort on sheet close** — The `AbortController` cancels in-flight requests, but the component doesn't explicitly call `abort()` on unmount. This is benign (the stream will terminate) but could be made explicit.
+- [ ] **Markdown rendering** — Assistant responses are rendered as plain text with `<br>` line breaks. Using a lightweight Markdown renderer (e.g. `marked` + `DOMPurify`) would make bullet lists, code blocks, etc. render correctly.
+- [ ] **Cited sources** — Attach `material_id` / chunk metadata to the assistant response so the UI can show "From: [Material Title]" beneath each answer.
+- [ ] **Chunk size tuning** — Current defaults (500 chars, 100 overlap) are conservative. Larger chunks (1000–1500 chars) may give better semantic coherence at the cost of more noise per chunk.
+
+---
+
+## Phase 8 — Autonomous Decisions Log
+
+| Decision | Rationale |
+|---|---|
+| **Custom streaming hook instead of `useChat`** | AI SDK v6 (`ai@6`) moved React hooks to `@ai-sdk/react` and changed the response contract (`toUIMessageStreamResponse` instead of `toDataStreamResponse`). The existing ELI5 route proves `toTextStreamResponse()` works. A custom `fetch` + `ReadableStream` loop avoids breaking API changes and is transparent to debug. |
+| **`toTextStreamResponse()` on chat route** | Simpler and consistent with the ELI5 pattern. The custom hook reads the raw byte stream directly — no SDK-specific envelope needed. |
+| **Lazy embedding (explicit "Prepare for Chat" step)** | Embedding on upload adds latency to the upload flow and wastes tokens if the user never uses chat. On-demand embedding with a clear loading state is better UX for a demo. |
+| **Idempotent re-embed (delete-then-insert)** | If materials change, old chunks become stale. Deleting all course chunks before inserting new ones keeps the index consistent at the cost of a brief window where the course has no embeddings. |
+| **One index per course (not per material)** | The RAG query is course-scoped — all materials are searched simultaneously. Per-material indexes would require user to pick a material before chatting, which is worse UX. |
+| **`text-embedding-004` (768-dim) via Gemini** | Available through the existing `@ai-sdk/google` provider. Same GCP credits as the quiz generation model. 768 dimensions is a good balance of quality vs. storage. |
+| **Chunk size: 500 chars, overlap: 100 chars** | Small enough to keep each chunk semantically focused (important for cosine similarity), large enough to preserve sentence context. Sentence-boundary snapping in the chunker reduces mid-sentence splits. |
+| **Max text per material: 20,000 chars** | Same order of magnitude as the quiz generation truncation (15k). Keeps embedding cost bounded and avoids Gemini API timeouts on very large materials. |
+| **Batch size: 50 chunks per `embedMany` call** | Gemini batch embedding supports up to 100 values per request; 50 is a conservative safety margin. With ≤10 materials × 40 chunks each = max ~400 chunks total, we need at most 8 batch calls. |
+| **Top-5 chunks for RAG context** | Enough signal for most questions without blowing the system-prompt token budget. Tunable via the `MATCH_COUNT` constant. |
+| **`match_material_chunks` as a Postgres RPC** | pgvector's `<=>` operator cannot be called directly from the Supabase JS client. An RPC function exposes it cleanly. RLS on `material_chunks` still applies inside the function (not `SECURITY DEFINER`). |
+| **`material_chunks.embedding` omitted from the TypeScript `Row` type** | The `vector(768)` column is never SELECTed back to the client (too large, always `select("id, content, ...")`). Including it as `number[]` in `Insert` is enough for the insert call. |
+| **No rate limit on the embed endpoint** | Embedding is computationally bounded (Gemini handles it) and already has a natural gate (user must click a button). A per-user rate limit can be added in Phase 10 if needed. |
+| **`gemini-2.0-flash` model for chat (not `gemini-3-flash-preview`)** | The chat route was a good place to test the stable `gemini-2.0-flash` model. Quiz routes continue to use `gemini-3-flash-preview`. Either can be swapped via a single-line change. |
+| **`@ai-sdk/react` installed but unused** | Installed during initial investigation; kept as a dependency since it may be useful in Phase 10 polish if the AI SDK chat API stabilizes. |

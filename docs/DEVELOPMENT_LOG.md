@@ -227,3 +227,83 @@ Entry format:
 - **Verification:** `npm run build` clean (Turbopack Next.js 16). TypeScript strict clean. Dev server smoke test: `/analytics` 200, smart-quiz POST 401 without auth (correctly guarded).
 - **Branch:** `phase-7-adaptive-quiz` (branched from `phase-6-analytics`)
 - **Commit:** `feat(phase-7): adaptive smart quiz`
+
+---
+
+## [2026-04-13] — Phase 8: RAG AI Study Coach
+
+- **What was built:** Per-course AI chat panel (slide-in Sheet). Users click "Chat with AI" on any course page → index materials once with Gemini `text-embedding-004` → ask free-form questions → AI answers using only the course's uploaded content (RAG). Responses stream token-by-token.
+- **Files created:**
+  - `lib/rag/chunker.ts` — `chunkText()`: splits raw text into overlapping chunks with sentence-boundary snapping.
+  - `app/api/embed-course/route.ts` — `GET` checks embedding status; `POST` chunks all materials, batch-embeds with Gemini, and upserts into `material_chunks` (idempotent — deletes then re-inserts).
+  - `app/api/chat/route.ts` — Auth → embed user query → `match_material_chunks` RPC (pgvector cosine search) → build system prompt with top-5 chunks → stream Gemini response (`toTextStreamResponse()`).
+  - `components/chat/course-chat-sheet.tsx` — Client chat UI: embedding gate (checking / missing / embedding / ready), streaming message bubbles, custom `fetch` + `ReadableStream` loop (no `useChat` — see decisions).
+- **Files modified:**
+  - `app/(app)/courses/[id]/page.tsx` — Added "Chat with AI" button in course header (visible when course has ≥1 material).
+  - `types/database.ts` — Added `material_chunks` table type (embedding column omitted from Row — never fetched).
+  - `docs/DEVELOPMENT_PLAN.md` — Updated folder structure + phase status table.
+  - `docs/BACKLOG.md` — Added Phase 8 decisions log + Phase 8 TODOs.
+  - `package.json` / `package-lock.json` — Added `@ai-sdk/react` (installed during investigation, kept as dep).
+- **DB migration required (run in Supabase SQL editor before deploying):**
+  ```sql
+  -- Enable pgvector
+  create extension if not exists vector;
+
+  -- Material chunks
+  create table material_chunks (
+    id uuid primary key default gen_random_uuid(),
+    material_id uuid not null references materials(id) on delete cascade,
+    course_id uuid not null references courses(id) on delete cascade,
+    content text not null,
+    chunk_index int not null,
+    embedding vector(768),
+    created_at timestamptz default now()
+  );
+  alter table material_chunks enable row level security;
+  create policy "material_chunks_select_own" on material_chunks
+    for select using (course_id in (select id from courses where user_id = auth.uid()));
+  create policy "material_chunks_insert_own" on material_chunks
+    for insert with check (course_id in (select id from courses where user_id = auth.uid()));
+  create policy "material_chunks_delete_own" on material_chunks
+    for delete using (course_id in (select id from courses where user_id = auth.uid()));
+
+  -- Semantic similarity search RPC
+  create or replace function match_material_chunks(
+    query_embedding vector(768),
+    course_id_filter uuid,
+    match_count int default 5
+  )
+  returns table (
+    id uuid,
+    material_id uuid,
+    content text,
+    chunk_index int,
+    similarity float
+  )
+  language sql stable
+  as $$
+    select
+      mc.id,
+      mc.material_id,
+      mc.content,
+      mc.chunk_index,
+      1 - (mc.embedding <=> query_embedding) as similarity
+    from material_chunks mc
+    where mc.course_id = course_id_filter
+    order by mc.embedding <=> query_embedding
+    limit match_count;
+  $$;
+  ```
+- **Autonomous decisions (see `docs/BACKLOG.md` for full table):**
+  - **Custom streaming hook instead of `useChat`:** AI SDK v6 moved React hooks to `@ai-sdk/react` and changed the response contract (`toUIMessageStreamResponse`). The ELI5 route proves `toTextStreamResponse()` works reliably; a custom `fetch` + `ReadableStream` loop is transparent and compatible.
+  - **Lazy embedding:** Index on demand (user clicks "Prepare for Chat"), not on upload. Avoids latency hit on upload flow and wasted tokens if chat is never used.
+  - **Idempotent re-embed:** Delete all course chunks, then insert fresh ones. User-visible RefreshCw button triggers this.
+  - **One index per course:** All materials searched simultaneously — no per-material selection gate.
+  - **`text-embedding-004` (768-dim):** Available via existing `@ai-sdk/google` provider, same GCP credits.
+  - **Chunk: 500 chars, 100 overlap, 20k char/material cap:** Conservative defaults that keep embedding cost bounded and semantic focus per chunk.
+  - **`match_material_chunks` as Postgres RPC:** pgvector's `<=>` operator not callable from Supabase JS client directly; RPC exposes it cleanly.
+  - **`gemini-2.0-flash` for chat (vs `gemini-3-flash-preview` for quizzes):** Stable model used for chat; quiz routes unchanged.
+- **Known issues / TODOs:** See `docs/BACKLOG.md` Phase 8 section for full list (re-embed on upload, markdown rendering, chat history persistence, cited sources).
+- **Verification:** `npm run build` clean (TypeScript strict, Turbopack). All 15 pages/routes compile. New routes `/api/chat` and `/api/embed-course` appear in the build manifest.
+- **Branch:** `phase-8-rag-study-coach`
+- **Commit:** `feat(phase-8): rag ai study coach`

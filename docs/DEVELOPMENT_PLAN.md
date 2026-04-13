@@ -14,7 +14,8 @@
 | 5 — Quiz Taking & Results | Done | (phase-5 branch) |
 | 6 — Analytics | Done | (phase-6-analytics branch) |
 | 7 — Adaptive Smart Quiz | Done | (phase-7-adaptive-quiz branch) |
-| 8–10 | Pending | — |
+| 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
+| 9–10 | Pending | — |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
@@ -67,6 +68,8 @@
 │   │   ├── quiz-preview-card.tsx
 │   │   ├── smart-quiz-dialog.tsx              # Phase 7
 │   │   └── sticky-notes-panel.tsx             # Phase 5
+│   ├── chat/
+│   │   └── course-chat-sheet.tsx              # Phase 8 — RAG chat UI
 │   ├── app-sidebar.tsx
 │   ├── top-nav.tsx
 │   ├── theme-provider.tsx
@@ -76,6 +79,8 @@
 │   │   ├── aggregations.ts
 │   │   ├── queries.ts
 │   │   └── user-stats.ts                      # Phase 7 — weak/medium/strong buckets + planner
+│   ├── rag/
+│   │   └── chunker.ts                         # Phase 8 — text chunking for embeddings
 │   ├── actions/attempts.ts                    # Phase 5
 │   ├── supabase/{client,server}.ts
 │   ├── ai/schemas.ts
@@ -92,7 +97,6 @@
 ## Folder Structure — Additions expected in later phases
 
 ```
-app/api/chat/route.ts                           # Phase 8
 lib/supabase/middleware.ts                      # if server auth middleware needed
 ```
 

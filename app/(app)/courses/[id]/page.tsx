@@ -1,5 +1,6 @@
 import { MaterialCard } from "@/components/courses/material-card";
 import { UploadMaterialDialog } from "@/components/courses/upload-material-dialog";
+import { CourseChatSheet } from "@/components/chat/course-chat-sheet";
 import { createClient } from "@/lib/supabase/server";
 import type { QuizAttempt, QuizWithAttempts } from "@/types/database";
 import { BookOpen } from "lucide-react";
@@ -88,9 +89,14 @@ export default async function CoursePage({
             {materialList.length} / 10 materials
           </p>
         </div>
-        {materialList.length < 10 && (
-          <UploadMaterialDialog courseId={course.id} />
-        )}
+        <div className="flex items-center gap-2">
+          {materialList.length > 0 && (
+            <CourseChatSheet courseId={course.id} courseName={course.name} />
+          )}
+          {materialList.length < 10 && (
+            <UploadMaterialDialog courseId={course.id} />
+          )}
+        </div>
       </div>
 
       {materialList.length === 0 ? (
