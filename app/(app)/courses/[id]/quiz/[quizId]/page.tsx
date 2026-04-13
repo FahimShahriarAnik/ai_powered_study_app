@@ -14,22 +14,29 @@ export default async function QuizRunnerPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: quiz } = await supabase
+  const { data: quizRaw } = await supabase
     .from("quizzes")
-    .select("id, title, question_count, material_id, questions(*), materials!inner(id, title, course_id)")
+    .select("id, title, question_count, material_id")
     .eq("id", quizId)
     .single();
 
-  if (!quiz) notFound();
+  if (!quizRaw) notFound();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const quizAny = quiz as any;
-  const material = quizAny.materials as { id: string; title: string; course_id: string };
-  if (material.course_id !== id) notFound();
+  const { data: material } = await supabase
+    .from("materials")
+    .select("id, title, course_id")
+    .eq("id", quizRaw.material_id)
+    .single();
 
-  const questions: Question[] = [...(quizAny.questions as Question[])].sort(
-    (a, b) => a.position - b.position
-  );
+  if (!material || material.course_id !== id) notFound();
+
+  const { data: questionsRaw } = await supabase
+    .from("questions")
+    .select("*")
+    .eq("quiz_id", quizId)
+    .order("position", { ascending: true });
+
+  const questions: Question[] = questionsRaw ?? [];
 
   if (questions.length === 0) notFound();
 
@@ -37,7 +44,7 @@ export default async function QuizRunnerPage({
   const { data: attempt, error: attemptErr } = await supabase
     .from("quiz_attempts")
     .insert({
-      quiz_id: quizId,
+      quiz_id: quizRaw.id,
       user_id: user.id,
       total: questions.length,
     })

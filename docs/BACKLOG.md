@@ -16,6 +16,21 @@ _(populated as phases progress)_
 
 ---
 
+## Phase 6 — Analytics UI Issues (fix in Phase 10 polish)
+
+- [ ] **Topic accuracy chart — Y-axis label overlap** — topic names overlap when there are many topics. Fix: increase chart height dynamically based on topic count, or truncate + tooltip on hover.
+- [ ] **Rolling accuracy chart — no connecting line** — dots render but the line between them is missing. Likely a Recharts `type="monotone"` or data shape issue. Investigate `connectNulls` prop.
+- [ ] **Heatmap/bar chart scale** — currently aggregates ALL answer_records ever (e.g. 20 questions × 2 quizzes = 20 data points). With 100+ questions across 10 quizzes this could get noisy. Consider: cap to last N attempts, or deduplicate by question_id keeping only most recent answer per question.
+- [ ] **Dark mode — analytics text invisible** — some text/chart elements lose contrast in dark theme. Audit chart axis tick colors and card text tokens; ensure all use semantic tokens (`text-foreground`, `text-muted-foreground`) not hardcoded colors.
+
+---
+
+## Dashboard — Known TODOs
+
+- [ ] **Course card material/quiz counts** — The per-course card in the dashboard grid shows hardcoded "0 materials · 0 quizzes". Needs a join on `materials` and `quizzes` per course_id. Defer to Phase 10 polish.
+
+---
+
 ## Phase 6 — Autonomous Decisions Log
 
 | Decision | Rationale |

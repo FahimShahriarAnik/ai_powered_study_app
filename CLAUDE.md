@@ -34,11 +34,8 @@ A web app that helps students study for exams using AI. Built for a student comp
 3. Write code.
 4. Provide test instructions.
 5. Provide commit command.
-6. Wait for user confirmation before moving to next phase.
 
-## Logging Rule
 
-Do NOT update `docs/DEVELOPMENT_LOG.md` automatically. Only update it when the user explicitly says "update the log" or similar.
 
 ## Tech Stack (locked)
 
