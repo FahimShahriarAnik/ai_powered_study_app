@@ -1,19 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { chunkText } from "@/lib/rag/chunker";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { embedMany } from "ai";
+import { google } from "@ai-sdk/google";
+import { embed } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// text-embedding-004 is only available on the v1 endpoint (not v1beta)
-const googleV1 = createGoogleGenerativeAI({
-  baseURL: "https://generativelanguage.googleapis.com/v1",
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
+// gemini-embedding-001: stable, 3072-dim, supports embedContent (not batchEmbedContents)
+const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
 
 const MAX_TEXT_CHARS = 20_000; // per material — keeps embedding cost bounded
 const CHUNK_SIZE = 500;
 const CHUNK_OVERLAP = 100;
-const EMBED_BATCH_SIZE = 50; // Gemini batch limit safety margin
+const EMBED_CONCURRENCY = 5; // parallel embed calls (gemini-embedding-001 has no batch endpoint)
 
 /**
  * GET /api/embed-course?courseId=X
@@ -130,16 +127,19 @@ export async function POST(request: NextRequest) {
     `[embed-course] course="${course.name}" — ${materials.length} materials, ${allChunks.length} chunks`
   );
 
-  // Embed in batches
-  const embeddings: number[][] = [];
+  // Embed chunks in parallel batches (gemini-embedding-001 only supports single embedContent)
+  const embeddings: number[][] = new Array(allChunks.length);
   try {
-    for (let i = 0; i < allChunks.length; i += EMBED_BATCH_SIZE) {
-      const batch = allChunks.slice(i, i + EMBED_BATCH_SIZE);
-      const { embeddings: batchEmbeddings } = await embedMany({
-        model: googleV1.textEmbeddingModel("text-embedding-004"),
-        values: batch.map((c) => c.content),
+    for (let i = 0; i < allChunks.length; i += EMBED_CONCURRENCY) {
+      const slice = allChunks.slice(i, i + EMBED_CONCURRENCY);
+      const results = await Promise.all(
+        slice.map((chunk) =>
+          embed({ model: EMBEDDING_MODEL, value: chunk.content })
+        )
+      );
+      results.forEach((r, j) => {
+        embeddings[i + j] = r.embedding;
       });
-      embeddings.push(...batchEmbeddings);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Embedding failed";

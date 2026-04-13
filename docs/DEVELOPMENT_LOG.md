@@ -256,7 +256,7 @@ Entry format:
     course_id uuid not null references courses(id) on delete cascade,
     content text not null,
     chunk_index int not null,
-    embedding vector(768),
+    embedding vector(3072),
     created_at timestamptz default now()
   );
   alter table material_chunks enable row level security;
@@ -269,7 +269,7 @@ Entry format:
 
   -- Semantic similarity search RPC
   create or replace function match_material_chunks(
-    query_embedding vector(768),
+    query_embedding vector(3072),
     course_id_filter uuid,
     match_count int default 5
   )

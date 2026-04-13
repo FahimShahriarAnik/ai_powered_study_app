@@ -1,13 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
+import { google } from "@ai-sdk/google";
 import { embed, streamText } from "ai";
 import { NextRequest } from "next/server";
 
-// text-embedding-004 is only available on the v1 endpoint (not v1beta)
-const googleV1 = createGoogleGenerativeAI({
-  baseURL: "https://generativelanguage.googleapis.com/v1",
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
+// gemini-embedding-001: stable, 3072-dim, supports embedContent
+const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
 
 const MATCH_COUNT = 5; // number of relevant chunks to retrieve
 
@@ -66,7 +63,7 @@ export async function POST(request: NextRequest) {
   let queryEmbedding: number[];
   try {
     const { embedding } = await embed({
-      model: googleV1.textEmbeddingModel("text-embedding-004"),
+      model: EMBEDDING_MODEL,
       value: userQuery,
     });
     queryEmbedding = embedding;
