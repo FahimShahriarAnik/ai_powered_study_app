@@ -1,0 +1,71 @@
+"use client";
+
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { Menu } from "lucide-react";
+import { AppSidebar } from "./app-sidebar";
+
+export function TopNav() {
+  return (
+    <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-background px-4">
+      <div className="flex items-center gap-3">
+        {/* Mobile menu trigger */}
+        <Sheet>
+          <SheetTrigger
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon" }),
+              "md:hidden"
+            )}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Open menu</span>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0">
+            <AppSidebar />
+          </SheetContent>
+        </Sheet>
+
+        <span className="font-semibold tracking-tight text-foreground">
+          Cortex
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon" }),
+              "rounded-full"
+            )}
+          >
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="text-xs">U</AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem className="text-muted-foreground text-sm" disabled>
+              guest@cortex.app
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Sign in</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
