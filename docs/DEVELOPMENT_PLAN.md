@@ -13,7 +13,8 @@
 | 4 — AI Quiz Generation | Done | `c8d1d1d` |
 | 5 — Quiz Taking & Results | Done | (phase-5 branch) |
 | 6 — Analytics | Done | (phase-6-analytics branch) |
-| 7–10 | Pending | — |
+| 7 — Adaptive Smart Quiz | Done | (phase-7-adaptive-quiz branch) |
+| 8–10 | Pending | — |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
@@ -21,7 +22,7 @@
 - Route grouping uses `app/(app)/` and `app/(auth)/` segment groups — differs from the flat tree originally sketched below but functionally equivalent.
 - Dashboard stats card shows hardcoded `0` for Materials and Quizzes — **wired in Phase 6**.
 
-## Folder Structure (actual, as of Phase 6)
+## Folder Structure (actual, as of Phase 7)
 
 ```
 /
@@ -44,6 +45,7 @@
 │   │   ├── analytics/insights/route.ts         # Phase 6
 │   │   ├── eli5/route.ts                       # Phase 5
 │   │   ├── generate-quiz/route.ts
+│   │   ├── generate-smart-quiz/route.ts        # Phase 7
 │   │   └── parse-pdf/route.ts
 │   ├── layout.tsx
 │   ├── page.tsx
@@ -63,15 +65,17 @@
 │   ├── quiz/
 │   │   ├── generate-quiz-button.tsx
 │   │   ├── quiz-preview-card.tsx
+│   │   ├── smart-quiz-dialog.tsx              # Phase 7
 │   │   └── sticky-notes-panel.tsx             # Phase 5
 │   ├── app-sidebar.tsx
 │   ├── top-nav.tsx
 │   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── lib/
-│   ├── analytics/                             # Phase 6
+│   ├── analytics/                             # Phase 6 (+ Phase 7)
 │   │   ├── aggregations.ts
-│   │   └── queries.ts
+│   │   ├── queries.ts
+│   │   └── user-stats.ts                      # Phase 7 — weak/medium/strong buckets + planner
 │   ├── actions/attempts.ts                    # Phase 5
 │   ├── supabase/{client,server}.ts
 │   ├── ai/schemas.ts
@@ -173,11 +177,14 @@ lib/supabase/middleware.ts                      # if server auth middleware need
   - One-click button: "Generate focused quiz on weak topic" (jumps into Phase 7).
 - **Commit:** `feat: analytics dashboard with ai insights`
 
-## Phase 7 — Adaptive Difficulty (Going Beyond)
+## Phase 7 — Adaptive Difficulty (Going Beyond)  [DONE — phase-7-adaptive-quiz branch]
 
-- "Smart Quiz" button on dashboard + analytics page.
-- When generating, weight questions: 60% weak topics, 30% medium, 10% strong (harder difficulty on strong).
-- Pull topic stats from `answer_records` aggregation.
+- "Smart Quiz" button on dashboard + analytics page (analytics CTA reuses the same dialog).
+- Topic stats pulled from `answer_records` + `questions` via `lib/analytics/user-stats.ts`.
+- Buckets: weak `< 50%`, strong `≥ 80%`, else medium. Min 5 answers before adaptation; below → balanced fallback.
+- Target distribution (60/30/10) + weak topic list passed as prompt context to Gemini; Gemini selects matching content from the chosen material.
+- New API route: `app/api/generate-smart-quiz/route.ts`. Reuses `quizSchema`; `quizzes.difficulty = "adaptive"`.
+- No DB migrations required.
 - **Commit:** `feat: adaptive smart quiz`
 
 ## Phase 8 — AI Study Coach / RAG Chat (Going Beyond)

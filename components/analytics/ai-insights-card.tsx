@@ -4,12 +4,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Sparkles, RefreshCw, TrendingDown, TrendingUp, Lock } from "lucide-react";
+import { SmartQuizDialog } from "@/components/quiz/smart-quiz-dialog";
+import { Sparkles, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import type { AiInsightContent } from "@/types/database";
 
 interface Props {
@@ -76,17 +72,11 @@ export function AiInsightsCard({ cached, currentAttemptCount }: Props) {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Generating…" : insight ? "Refresh" : "Generate insights"}
           </Button>
-          <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex" />}>
-              <Button size="sm" variant="secondary" disabled className="gap-1.5 opacity-50 pointer-events-none">
-                <Lock className="h-3.5 w-3.5" />
-                Generate focused quiz on weak topic
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Coming in Phase 7 — Adaptive Difficulty</p>
-            </TooltipContent>
-          </Tooltip>
+          <SmartQuizDialog
+            triggerLabel="Generate focused quiz on weak topic"
+            triggerVariant="secondary"
+            triggerSize="sm"
+          />
         </div>
       </CardHeader>
 

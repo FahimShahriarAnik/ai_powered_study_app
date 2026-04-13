@@ -197,3 +197,33 @@ Entry format:
 - **Known issues / TODOs:** None — `npm run build` clean.
 - **Branch:** `phase-6-analytics`
 - **Commit:** `feat(phase-6): analytics dashboard with ai insights`
+
+---
+
+## [2026-04-13] — Phase 7: Adaptive Smart Quiz
+
+- **What was built:** "Smart Quiz" feature that personalizes Gemini-generated MCQs based on the user's historical quiz performance. Targets 60% weak topics / 30% medium / 10% strong (harder difficulty on strong), with safe fallback to a balanced mix when the user hasn't completed enough attempts. Material-picker dialog on both Dashboard header and Analytics "Generate focused quiz on weak topic" CTA (Phase 6's disabled placeholder is now live).
+- **Files created:**
+  - `lib/analytics/user-stats.ts` — `getUserTopicStats()`, `bucketTopics()`, `planSmartQuiz()`, `buildSmartQuizPromptContext()`. Pure, unit-testable.
+  - `app/api/generate-smart-quiz/route.ts` — auth check, material lookup, 60s/material rate limit, stats lookup, plan + prompt build, Gemini `generateObject` call with `quizSchema`, persistence into `quizzes` + `questions`.
+  - `components/quiz/smart-quiz-dialog.tsx` — client dialog: loads user's materials, lets user pick one, POSTs to the API, navigates to the fresh quiz's runner page.
+- **Files modified:**
+  - `app/(app)/dashboard/page.tsx` — added `SmartQuizDialog` next to New Course in the header.
+  - `components/analytics/ai-insights-card.tsx` — replaced the disabled Phase 7 tooltip/button with live `SmartQuizDialog` (variant="secondary").
+  - `docs/BACKLOG.md` — appended Phase 7 autonomous-decisions table + Phase 7 TODOs for Phase 10 polish.
+- **Autonomous decisions (see `docs/BACKLOG.md` for full table):**
+  - **Source material is required:** Smart Quiz operates on one chosen material, not a cross-course synthesis. Cross-course would require RAG or multi-material blending, out of Phase 7 scope.
+  - **Adaptation driven by prompt, not by algorithmic question selection:** We can't deterministically slice Gemini output. Instead we pass (a) student's weak/medium/strong topic lists with accuracies and (b) explicit per-bucket question counts as a *target distribution*. Gemini picks matching content from the material.
+  - **Thresholds:** weak `< 50%`, strong `≥ 80%`, else medium. Minimum **5 answer records** before adaptation kicks in — below this, plan falls back to a balanced "mix easy/medium/hard" prompt (still via the Smart Quiz route; still labelled `adaptive`).
+  - **Empty-bucket redistribution:** if any of weak/medium/strong is empty, that bucket's allocation rolls to the nearest populated bucket so the final plan still sums to `questionCount`.
+  - **Rate limit:** 60s per material — reuses the Phase 4 signal (`quizzes.created_at`) instead of adding a separate table.
+  - **`quizzes.difficulty = "adaptive"`** written on insert. `QuizPreviewCard`'s DIFF_COLORS map doesn't yet include `adaptive` so the badge falls through to the `mixed` blue — logged in BACKLOG for Phase 10 polish.
+  - **Supabase join typing workaround:** A single `select("id, title, course_id, course:courses!…(name)")` call produced `never` types (because `Database.Tables.materials.Relationships: []` is empty). Replaced with two parallel queries joined client-side via a `Map<courseId, name>` — minimal change, zero schema retyping.
+- **DB migrations:** None. Phase 7 is read-only on `answer_records` / `questions` and insert-only on `quizzes` / `questions` (already existing).
+- **Known issues / TODOs:**
+  - `adaptive` difficulty badge falls back to the `mixed` color — cosmetic only, noted in BACKLOG.
+  - API returns `plan` object but UI doesn't surface it — would make a good demo-tell ("This quiz: 6 weak · 3 medium · 1 strong"). Logged in BACKLOG.
+  - Analytics CTA still goes through the generic material picker rather than auto-selecting a material tied to the weakest topic — logged for Phase 10.
+- **Verification:** `npm run build` clean (Turbopack Next.js 16). TypeScript strict clean. Dev server smoke test: `/analytics` 200, smart-quiz POST 401 without auth (correctly guarded).
+- **Branch:** `phase-7-adaptive-quiz` (branched from `phase-6-analytics`)
+- **Commit:** `feat(phase-7): adaptive smart quiz`

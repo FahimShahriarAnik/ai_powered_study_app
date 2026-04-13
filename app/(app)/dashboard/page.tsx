@@ -1,4 +1,5 @@
 import { NewCourseDialog } from "@/components/dashboard/new-course-dialog";
+import { SmartQuizDialog } from "@/components/quiz/smart-quiz-dialog";
 import { createClient } from "@/lib/supabase/server";
 import type { Course } from "@/types/database";
 import { BookOpen, FileText, Plus, Zap } from "lucide-react";
@@ -58,7 +59,10 @@ export default async function DashboardPage({
             Your courses and study progress
           </p>
         </div>
-        <NewCourseDialog open={showNewDialog} />
+        <div className="flex items-center gap-2">
+          <SmartQuizDialog />
+          <NewCourseDialog open={showNewDialog} />
+        </div>
       </div>
 
       {/* Stats */}
