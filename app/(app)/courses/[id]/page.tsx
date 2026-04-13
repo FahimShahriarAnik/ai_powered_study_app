@@ -1,6 +1,7 @@
 import { MaterialCard } from "@/components/courses/material-card";
 import { UploadMaterialDialog } from "@/components/courses/upload-material-dialog";
 import { createClient } from "@/lib/supabase/server";
+import type { QuizWithQuestions } from "@/types/database";
 import { BookOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 
@@ -27,6 +28,30 @@ export default async function CoursePage({
     .order("created_at", { ascending: false });
 
   const materialList = materials ?? [];
+
+  // Fetch all quizzes + questions for this course's materials in one go
+  const materialIds = materialList.map((m) => m.id);
+  let quizzesByMaterial: Record<string, QuizWithQuestions[]> = {};
+
+  if (materialIds.length > 0) {
+    const { data: quizzes } = await supabase
+      .from("quizzes")
+      .select("*, questions(*)")
+      .in("material_id", materialIds)
+      .order("created_at", { ascending: false });
+
+    if (quizzes) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const quiz of quizzes as any[]) {
+        const mid = quiz.material_id as string;
+        if (!quizzesByMaterial[mid]) quizzesByMaterial[mid] = [];
+        const sorted = [...(quiz.questions as QuizWithQuestions["questions"])].sort(
+          (a, b) => a.position - b.position
+        );
+        quizzesByMaterial[mid].push({ ...quiz, questions: sorted } as QuizWithQuestions);
+      }
+    }
+  }
 
   return (
     <div className="p-6">
@@ -58,7 +83,11 @@ export default async function CoursePage({
       ) : (
         <div className="space-y-3">
           {materialList.map((material) => (
-            <MaterialCard key={material.id} material={material} />
+            <MaterialCard
+              key={material.id}
+              material={material}
+              quizzes={quizzesByMaterial[material.id] ?? []}
+            />
           ))}
         </div>
       )}
