@@ -1,14 +1,24 @@
 import { ThemeToggle } from "@/components/theme-toggle";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
+        <span className="font-semibold tracking-tight text-foreground">
+          Cortex
+        </span>
         <div className="flex items-center gap-2">
-          <div className="h-6 w-6 rounded-md bg-primary" aria-hidden />
-          <span className="font-semibold tracking-tight">StudyAI</span>
+          <ThemeToggle />
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            Open app
+          </Link>
         </div>
-        <ThemeToggle />
       </header>
 
       <main className="flex flex-1 items-center justify-center px-6 py-16">
@@ -17,22 +27,20 @@ export default function Home() {
             Study smarter with AI.
           </h1>
           <p className="text-base leading-7 text-muted-foreground">
-            Upload your materials, generate quizzes, and track your strengths and
-            weaknesses — all in one place.
+            Upload your materials, generate quizzes, and track your strengths
+            and weaknesses — all in one place.
           </p>
-
-          <div className="w-full rounded-lg border border-border bg-card p-6 text-card-foreground">
-            <p className="text-sm font-medium">Phase 0 check</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Toggle the theme in the top right. Text should stay readable in
-              light, dark, and system modes.
-            </p>
-          </div>
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ size: "lg" }))}
+          >
+            Get started
+          </Link>
         </section>
       </main>
 
       <footer className="border-t border-border px-6 py-4 text-sm text-muted-foreground">
-        <span>StudyAI — Phase 0</span>
+        <span>Cortex</span>
       </footer>
     </div>
   );

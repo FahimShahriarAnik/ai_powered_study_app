@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StudyAI",
+  title: "Cortex",
   description: "AI-powered study companion.",
 };
 
