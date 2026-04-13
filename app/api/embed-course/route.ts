@@ -1,8 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { chunkText } from "@/lib/rag/chunker";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { embedMany } from "ai";
 import { NextRequest, NextResponse } from "next/server";
+
+// text-embedding-004 is only available on the v1 endpoint (not v1beta)
+const googleV1 = createGoogleGenerativeAI({
+  baseURL: "https://generativelanguage.googleapis.com/v1",
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
 
 const MAX_TEXT_CHARS = 20_000; // per material — keeps embedding cost bounded
 const CHUNK_SIZE = 500;
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < allChunks.length; i += EMBED_BATCH_SIZE) {
       const batch = allChunks.slice(i, i + EMBED_BATCH_SIZE);
       const { embeddings: batchEmbeddings } = await embedMany({
-        model: google.textEmbeddingModel("text-embedding-004"),
+        model: googleV1.textEmbeddingModel("text-embedding-004"),
         values: batch.map((c) => c.content),
       });
       embeddings.push(...batchEmbeddings);
