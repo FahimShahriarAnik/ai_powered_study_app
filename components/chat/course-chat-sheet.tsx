@@ -107,7 +107,7 @@ export function CourseChatSheet({
       .order("created_at", { ascending: true });
     const opts: MaterialOption[] = data ?? [];
     setMaterialOptions(opts);
-    setSelectedMaterialIds(new Set(opts.map((m) => m.id)));
+    setSelectedMaterialIds(new Set()); // user must pick explicitly
   }
 
   function toggleMaterial(id: string) {
@@ -150,7 +150,12 @@ export function CourseChatSheet({
       const res = await fetch("/api/embed-course", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId }),
+        body: JSON.stringify({
+          courseId,
+          materialIds: selectedMaterialIds.size > 0
+            ? Array.from(selectedMaterialIds)
+            : undefined, // undefined = embed all
+        }),
       });
       const data = (await res.json()) as {
         chunksCreated?: number;
@@ -354,7 +359,50 @@ export function CourseChatSheet({
                         Index your materials once to enable AI-powered chat.
                       </p>
                     </div>
-                    <Button size="sm" onClick={() => void handleEmbed()}>
+
+                    {/* Material selector — shown before indexing so user can pick */}
+                    {materialOptions.length > 0 && (
+                      <div className="w-full space-y-1.5 text-left">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Materials ({selectedMaterialIds.size}/{materialOptions.length} selected)
+                        </p>
+                        <div className="max-h-36 overflow-y-auto rounded-md border border-border">
+                          {materialOptions.map((m) => {
+                            const checked = selectedMaterialIds.has(m.id);
+                            return (
+                              <label
+                                key={m.id}
+                                className={cn(
+                                  "flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-muted/40",
+                                  checked && "bg-primary/5"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleMaterial(m.id)}
+                                  className="h-3.5 w-3.5 accent-primary"
+                                />
+                                <span
+                                  className={cn(
+                                    "flex-1 truncate leading-tight",
+                                    checked ? "text-foreground" : "text-muted-foreground"
+                                  )}
+                                >
+                                  {m.title}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      size="sm"
+                      disabled={selectedMaterialIds.size === 0}
+                      onClick={() => void handleEmbed()}
+                    >
                       Prepare for Chat
                     </Button>
                   </>

@@ -62,8 +62,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/embed-course
- * Body: { courseId: string }
- * Chunks all materials, embeds sequentially with rate-limit delay, upserts into material_chunks.
+ * Body: { courseId: string; materialIds?: string[] }
+ * If materialIds provided, only those materials are embedded (saves API quota).
+ * Otherwise all course materials are embedded.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -74,7 +75,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { courseId } = (await request.json()) as { courseId: string };
+  const { courseId, materialIds } = (await request.json()) as {
+    courseId: string;
+    materialIds?: string[];
+  };
   if (!courseId) {
     return NextResponse.json({ error: "courseId required" }, { status: 400 });
   }
@@ -88,10 +92,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
-  const { data: materials } = await supabase
+  let query = supabase
     .from("materials")
     .select("id, title, raw_text")
     .eq("course_id", courseId);
+  if (materialIds && materialIds.length > 0) {
+    query = query.in("id", materialIds);
+  }
+  const { data: materials } = await query;
 
   if (!materials || materials.length === 0) {
     return NextResponse.json(
@@ -156,8 +164,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Delete old chunks then insert fresh
-  await supabase.from("material_chunks").delete().eq("course_id", courseId);
+  // Delete old chunks for the materials being re-embedded (not the whole course)
+  const materialIdsToDelete = allChunks
+    .map((c) => c.material_id)
+    .filter((v, i, a) => a.indexOf(v) === i);
+  await supabase
+    .from("material_chunks")
+    .delete()
+    .in("material_id", materialIdsToDelete);
 
   const rows = allChunks.map((chunk, i) => ({
     ...chunk,
