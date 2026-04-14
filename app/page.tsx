@@ -16,39 +16,45 @@ import Link from "next/link";
 const FEATURES = [
   {
     icon: BookOpen,
-    title: "Upload Any Material",
+    title: "Drop In Your Notes",
     description:
-      "Drop in PDFs or paste notes. Cortex extracts the content and makes it quiz-ready in seconds.",
+      "Upload PDFs or paste text for any course. Cortex extracts the content and makes it quiz-ready in seconds.",
+    href: "/dashboard",
   },
   {
     icon: Brain,
-    title: "AI-Generated Quizzes",
+    title: "Quizzes That Write Themselves",
     description:
-      "Gemini Flash turns your materials into sharp multiple-choice questions — with explanations.",
+      "Gemini Flash turns your materials into sharp multiple-choice questions — complete with explanations for every answer.",
+    href: "/dashboard",
   },
   {
     icon: Zap,
-    title: "Adaptive Difficulty",
+    title: "Gets Harder Where It Counts",
     description:
-      "Smart Quiz analyses your weak topics and builds a personalised question set to close the gaps.",
+      "Smart Quiz analyses your answer history per topic, then builds a personalised question set weighted toward your weak spots.",
+    href: "/dashboard",
   },
   {
     icon: ChartBar,
-    title: "Strengths & Weaknesses",
+    title: "Know Exactly Where You Stand",
     description:
-      "Per-topic accuracy charts, rolling performance trends, and AI-generated study recommendations.",
+      "Per-topic accuracy charts, rolling performance trends, and AI-generated study recommendations — all in one view.",
+    href: "/analytics",
   },
   {
     icon: Bot,
-    title: "RAG Study Coach",
+    title: "Chat With Your Notes",
     description:
-      "Chat with your uploaded materials. Ask anything — Cortex retrieves the right context and answers.",
+      "Ask anything about your uploaded materials. Cortex uses RAG to retrieve the right context and answer instantly.",
+    href: "/dashboard",
   },
   {
     icon: Swords,
-    title: "Competitive Quiz Rooms",
+    title: "Race a Friend Live",
     description:
-      "Challenge a friend in real-time 1v1 quiz battles. Live scoring, same questions, instant results.",
+      "Challenge a classmate in a real-time 1v1 quiz battle. Live scoring, same questions, instant results.",
+    href: "/rooms",
   },
 ];
 
@@ -181,13 +187,14 @@ export default async function Home() {
               </p>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {FEATURES.map(({ icon: Icon, title, description }) => (
-                <div
+              {FEATURES.map(({ icon: Icon, title, description, href }) => (
+                <Link
                   key={title}
-                  className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md"
+                  href={isLoggedIn ? href : "/login"}
+                  className="group rounded-xl border border-border bg-card p-5 transition-all hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <Icon className="h-4.5 w-4.5 text-primary" />
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/20">
+                    <Icon className="h-5 w-5 text-primary" />
                   </div>
                   <h3 className="mb-1.5 font-semibold text-foreground">
                     {title}
@@ -195,7 +202,7 @@ export default async function Home() {
                   <p className="text-sm leading-6 text-muted-foreground">
                     {description}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
