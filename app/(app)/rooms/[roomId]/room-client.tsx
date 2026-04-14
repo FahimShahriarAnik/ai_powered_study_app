@@ -22,26 +22,22 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-type PartialAnswer = {
-  id: string;
-  participant_id: string;
-  question_index: number;
-  is_correct: boolean;
-  answered_at: string;
-};
-
 interface Props {
   initialRoom: QuizRoom;
   initialParticipants: RoomParticipant[];
-  initialCurrentAnswers: PartialAnswer[];
-  /** May be empty for anonymous/guest users if RLS blocks questions SSR — the
-   *  poll will backfill from the admin-client-powered GET route on first fetch. */
   initialQuestions: SanitizedQuestion[];
   myParticipantId: string;
   isHost: boolean;
 }
 
+type FlashState = {
+  correctIndex: number;
+  isCorrect: boolean;
+  points: number;
+};
+
 const OPTION_LABELS = ["A", "B", "C", "D"];
+const FLASH_DURATION_MS = 2000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,7 +53,6 @@ function useNow(intervalMs = 250) {
 export function RoomClient({
   initialRoom,
   initialParticipants,
-  initialCurrentAnswers,
   initialQuestions,
   myParticipantId,
   isHost,
@@ -67,51 +62,69 @@ export function RoomClient({
   const [room, setRoom] = useState<QuizRoom>(initialRoom);
   const [participants, setParticipants] =
     useState<RoomParticipant[]>(initialParticipants);
-  const [currentAnswers, setCurrentAnswers] = useState<PartialAnswer[]>(
-    initialCurrentAnswers as PartialAnswer[]
+  const [questions, setQuestions] =
+    useState<SanitizedQuestion[]>(initialQuestions);
+
+  // Per-participant question tracking
+  const myParticipant = participants.find((p) => p.id === myParticipantId);
+  const [myCurrentQuestion, setMyCurrentQuestion] = useState(
+    () =>
+      initialParticipants.find((p) => p.id === myParticipantId)
+        ?.current_question ?? 0
   );
-  // questions may be empty on first render for guest/anonymous users (RLS blocks SSR).
-  // The poll backfills them from the admin-client API route on the first successful fetch.
-  const [questions, setQuestions] = useState<SanitizedQuestion[]>(initialQuestions);
-  const [revealedAnswers, setRevealedAnswers] = useState<Record<string, number>>(
-    initialRoom.revealed_answers ?? {}
+  const [myFinished, setMyFinished] = useState(
+    () =>
+      !!(
+        initialParticipants.find((p) => p.id === myParticipantId)?.finished_at
+      )
   );
 
   const [myAnswerIndex, setMyAnswerIndex] = useState<number | null>(null);
-  const [myAnswerCorrect, setMyAnswerCorrect] = useState<boolean | null>(null);
-  const [myLastPoints, setMyLastPoints] = useState<number | null>(null);
+  const [flash, setFlash] = useState<FlashState | null>(null);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [advancing, setAdvancing] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
 
-  const advancingRef = useRef(false);
-  const roomRef = useRef(room);
-  roomRef.current = room;
+  // Track when the current question was shown (for per-question countdown)
+  const questionShownAtRef = useRef<number>(Date.now());
+  const answeringRef = useRef(false);
 
-  // Live clock for total timer + countdown
   const now = useNow();
 
   // ─── Derived timing ───────────────────────────────────────────────────────
   const totalQuestions = questions.length;
   const totalDurationSec = totalQuestions * room.question_duration_seconds;
 
-  // question_started_at is used as game_started_at (the moment play begins)
   const gameStartMs = room.question_started_at
     ? new Date(room.question_started_at).getTime()
     : null;
 
-  // Countdown: positive means game hasn't started yet
+  // Countdown before game starts (positive = not started yet)
   const countdownSec = gameStartMs
     ? Math.ceil((gameStartMs - now) / 1000)
     : null;
   const isCountingDown = countdownSec !== null && countdownSec > 0;
 
-  // Total time remaining once game started
-  const elapsedSec = gameStartMs ? (now - gameStartMs) / 1000 : 0;
-  const totalTimeLeft = Math.max(0, totalDurationSec - elapsedSec);
-  const totalTimePct = totalDurationSec > 0 ? (totalTimeLeft / totalDurationSec) * 100 : 100;
-  const timerUrgent = totalTimeLeft <= 30;
+  // Per-question countdown (resets when myCurrentQuestion changes)
+  const questionElapsedSec =
+    !isCountingDown && room.status === "active" && !myFinished && !flash
+      ? (now - questionShownAtRef.current) / 1000
+      : 0;
+  const questionTimeLeft = Math.max(
+    0,
+    room.question_duration_seconds - questionElapsedSec
+  );
+  const questionTimePct =
+    (questionTimeLeft / room.question_duration_seconds) * 100;
+  const timerUrgent = questionTimeLeft <= 8;
+
+  // ─── Reset question timer when question advances ──────────────────────────
+  useEffect(() => {
+    if (room.status === "active" && !isCountingDown) {
+      questionShownAtRef.current = Date.now();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myCurrentQuestion, isCountingDown]);
 
   // ─── Realtime subscriptions ───────────────────────────────────────────────
   useEffect(() => {
@@ -126,19 +139,7 @@ export function RoomClient({
           filter: `id=eq.${initialRoom.id}`,
         },
         (payload) => {
-          const updated = payload.new as QuizRoom;
-          const prev = roomRef.current;
-
-          setRoom(updated);
-          setRevealedAnswers(updated.revealed_answers ?? {});
-
-          if (updated.current_question !== prev.current_question) {
-            setCurrentAnswers([]);
-            setMyAnswerIndex(null);
-            setMyAnswerCorrect(null);
-            setMyLastPoints(null);
-            advancingRef.current = false;
-          }
+          setRoom(payload.new as QuizRoom);
         }
       )
       .on(
@@ -172,32 +173,6 @@ export function RoomClient({
           );
         }
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "room_answers",
-          filter: `room_id=eq.${initialRoom.id}`,
-        },
-        (payload) => {
-          const a = payload.new as PartialAnswer & { room_id: string; selected_index: number };
-          setCurrentAnswers((prev) => {
-            if (prev.find((x) => x.id === a.id)) return prev;
-            if (a.question_index !== roomRef.current.current_question) return prev;
-            return [
-              ...prev,
-              {
-                id: a.id,
-                participant_id: a.participant_id,
-                question_index: a.question_index,
-                is_correct: a.is_correct,
-                answered_at: a.answered_at,
-              },
-            ];
-          });
-        }
-      )
       .subscribe();
 
     return () => {
@@ -206,51 +181,32 @@ export function RoomClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRoom.id]);
 
-  // ─── Polling via API route (RLS-safe) ────────────────────────────────────
-  // Direct client-side Supabase queries fail for the non-host because RLS on
-  // quiz_rooms restricts SELECT to the host. The GET /api/rooms/[roomId] route
-  // uses the server-side Supabase client which bypasses RLS, so both players
-  // always receive up-to-date state. Realtime is kept as a fast-path when it
-  // works; this poll is the reliable fallback.
+  // ─── Polling fallback (RLS-safe) ──────────────────────────────────────────
   useEffect(() => {
     const poll = async () => {
       try {
         const res = await fetch(`/api/rooms/${initialRoom.id}`);
         if (!res.ok) return;
-        const json = await res.json() as {
+        const json = (await res.json()) as {
           room: QuizRoom;
           participants: RoomParticipant[];
           questions: SanitizedQuestion[];
-          currentAnswers: PartialAnswer[];
         };
 
-        const { room: roomData, participants: pData, questions: qData, currentAnswers: caData } = json;
-
-        // Backfill questions if SSR returned empty (guest RLS issue)
-        if (qData.length > 0) {
-          setQuestions((prev) => (prev.length === 0 ? qData : prev));
+        if (json.questions.length > 0) {
+          setQuestions((prev) => (prev.length === 0 ? json.questions : prev));
         }
-
         setRoom((prev) => {
-          const changed =
-            prev.status !== roomData.status ||
-            prev.current_question !== roomData.current_question ||
-            prev.question_started_at !== roomData.question_started_at;
-          if (!changed) return prev;
-          setRevealedAnswers(roomData.revealed_answers ?? {});
-          if (roomData.current_question !== prev.current_question) {
-            setCurrentAnswers(caData);
-            setMyAnswerIndex(null);
-            setMyAnswerCorrect(null);
-            setMyLastPoints(null);
-            advancingRef.current = false;
-          }
-          return roomData;
+          if (
+            prev.status === json.room.status &&
+            prev.question_started_at === json.room.question_started_at
+          )
+            return prev;
+          return json.room;
         });
-
-        setParticipants(pData);
+        setParticipants(json.participants);
       } catch {
-        // Network error — silently ignore, next tick will retry
+        // Network error — silently ignore
       }
     };
 
@@ -259,39 +215,21 @@ export function RoomClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRoom.id]);
 
-  // ─── Auto-advance when total timer expires ────────────────────────────────
-  const handleNext = useCallback(async () => {
-    if (advancingRef.current) return;
-    advancingRef.current = true;
-    setAdvancing(true);
-    try {
-      await fetch(`/api/rooms/${initialRoom.id}/next`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromQuestion: roomRef.current.current_question }),
-      });
-    } finally {
-      setAdvancing(false);
-    }
-  }, [initialRoom.id]);
-
-  // Auto-advance: all players answered
+  // ─── Auto-timeout when per-question timer hits 0 ─────────────────────────
   useEffect(() => {
-    if (!isHost || room.status !== "active" || isCountingDown) return;
-    const answeredCount = currentAnswers.length;
-    if (answeredCount > 0 && answeredCount >= participants.length) {
-      const t = setTimeout(() => handleNext(), 1800);
-      return () => clearTimeout(t);
+    if (
+      room.status !== "active" ||
+      isCountingDown ||
+      myFinished ||
+      flash !== null ||
+      myAnswerIndex !== null
+    )
+      return;
+    if (questionTimeLeft <= 0) {
+      handleAnswer(-1);
     }
-  }, [currentAnswers, participants, room.status, isHost, handleNext, isCountingDown]);
-
-  // Auto-advance (or end game): total timer expired
-  useEffect(() => {
-    if (!isHost || room.status !== "active" || isCountingDown) return;
-    if (totalTimeLeft <= 0) {
-      handleNext();
-    }
-  }, [totalTimeLeft, isHost, room.status, handleNext, isCountingDown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionTimeLeft, room.status, isCountingDown, myFinished, flash, myAnswerIndex]);
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   async function handleStart() {
@@ -300,34 +238,65 @@ export function RoomClient({
     setStarting(false);
   }
 
-  async function handleAnswer(selectedIndex: number) {
-    if (myAnswerIndex !== null) return;
-    if (isCountingDown) return;
-    setAnswerError(null);
-    setMyAnswerIndex(selectedIndex);
+  const handleAnswer = useCallback(
+    async (selectedIndex: number) => {
+      if (answeringRef.current) return;
+      if (myAnswerIndex !== null && selectedIndex !== -1) return;
+      if (isCountingDown || myFinished) return;
 
-    try {
-      const res = await fetch(`/api/rooms/${initialRoom.id}/answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionIndex: room.current_question,
-          selectedIndex,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setAnswerError(json.error ?? "Failed to record answer");
-        setMyAnswerIndex(null);
-        return;
+      answeringRef.current = true;
+      if (selectedIndex !== -1) setMyAnswerIndex(selectedIndex);
+      setAnswerError(null);
+
+      try {
+        const res = await fetch(`/api/rooms/${initialRoom.id}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questionIndex: myCurrentQuestion,
+            selectedIndex,
+          }),
+        });
+        const json = await res.json();
+
+        if (!res.ok) {
+          if (selectedIndex !== -1) {
+            setAnswerError(json.error ?? "Failed to record answer");
+            setMyAnswerIndex(null);
+          }
+          answeringRef.current = false;
+          return;
+        }
+
+        // Show 2s flash with correct/wrong reveal
+        setFlash({
+          correctIndex: json.correctIndex,
+          isCorrect: json.isCorrect,
+          points: json.points,
+        });
+
+        setTimeout(() => {
+          setFlash(null);
+          setMyAnswerIndex(null);
+          answeringRef.current = false;
+
+          if (json.finished) {
+            setMyFinished(true);
+          } else {
+            setMyCurrentQuestion((prev) => prev + 1);
+          }
+        }, FLASH_DURATION_MS);
+      } catch {
+        if (selectedIndex !== -1) {
+          setAnswerError("Network error");
+          setMyAnswerIndex(null);
+        }
+        answeringRef.current = false;
       }
-      setMyAnswerCorrect(json.isCorrect);
-      if (json.isCorrect) setMyLastPoints(json.points);
-    } catch {
-      setAnswerError("Network error");
-      setMyAnswerIndex(null);
-    }
-  }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myCurrentQuestion, myAnswerIndex, isCountingDown, myFinished, initialRoom.id]
+  );
 
   async function copyCode() {
     await navigator.clipboard.writeText(room.code);
@@ -336,22 +305,8 @@ export function RoomClient({
   }
 
   // ─── Derived state ────────────────────────────────────────────────────────
-  const currentQ = questions[room.current_question];
-  const revealedCorrectIndex =
-    revealedAnswers[String(room.current_question)] ?? null;
-  const questionClosed =
-    revealedCorrectIndex !== null ||
-    room.status === "finished" ||
-    (currentAnswers.length >= participants.length && participants.length > 0);
-
-  const myParticipant = participants.find((p) => p.id === myParticipantId);
   const opponent = participants.find((p) => p.id !== myParticipantId);
-  const opponentAnswered = currentAnswers.some(
-    (a) => a.participant_id !== myParticipantId
-  );
-
-  // Max possible score for display context
-  const maxScore = totalQuestions * 20; // 10 base + 10 bonus per question
+  const maxScore = totalQuestions * 20;
 
   // ─── Render: Waiting Room ─────────────────────────────────────────────────
   if (room.status === "waiting") {
@@ -363,7 +318,8 @@ export function RoomClient({
           </div>
           <h1 className="text-xl font-semibold text-foreground">Quiz Room</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totalQuestions} questions · {totalDurationSec}s total time
+            {totalQuestions} questions · {room.question_duration_seconds}s per
+            question
           </p>
         </div>
 
@@ -515,7 +471,6 @@ export function RoomClient({
   if (room.status === "active" && isCountingDown) {
     return (
       <div className="mx-auto max-w-md p-6 flex flex-col items-center gap-6">
-        {/* Countdown circle */}
         <div className="flex flex-col items-center gap-3 mt-4">
           <div
             className={cn(
@@ -532,7 +487,6 @@ export function RoomClient({
           </p>
         </div>
 
-        {/* Players */}
         <div className="flex w-full items-center justify-around">
           {participants.map((p) => (
             <div key={p.id} className="flex flex-col items-center gap-1">
@@ -549,7 +503,6 @@ export function RoomClient({
           ))}
         </div>
 
-        {/* Rules */}
         <div className="w-full rounded-lg border border-border bg-muted/30 p-4 space-y-3">
           <p className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Swords className="h-4 w-4 text-primary" />
@@ -559,23 +512,27 @@ export function RoomClient({
             <li className="flex items-start gap-2">
               <Check className="h-4 w-4 shrink-0 text-green-500 mt-0.5" />
               <span>
-                Answer all <strong className="text-foreground">{totalQuestions} questions</strong> correctly to score points
+                Answer all{" "}
+                <strong className="text-foreground">{totalQuestions} questions</strong>{" "}
+                independently — no waiting for your opponent
               </span>
             </li>
             <li className="flex items-start gap-2">
               <Zap className="h-4 w-4 shrink-0 text-yellow-500 mt-0.5" />
               <span>
                 Each correct answer is worth{" "}
-                <strong className="text-foreground">10–20 pts</strong> — the
-                more time remaining on the clock, the bigger the bonus
+                <strong className="text-foreground">10–20 pts</strong> — faster
+                answers earn a bigger bonus
               </span>
             </li>
             <li className="flex items-start gap-2">
               <Clock className="h-4 w-4 shrink-0 text-primary mt-0.5" />
               <span>
-                Total time:{" "}
-                <strong className="text-foreground">{totalDurationSec}s</strong>{" "}
-                for all {totalQuestions} questions
+                You have{" "}
+                <strong className="text-foreground">
+                  {room.question_duration_seconds}s
+                </strong>{" "}
+                per question — it auto-advances when time runs out
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -591,7 +548,44 @@ export function RoomClient({
     );
   }
 
+  // ─── Render: Waiting for opponent after finishing ─────────────────────────
+  if (myFinished && room.status !== "finished") {
+    const opponentDone = !!(opponent?.finished_at);
+    return (
+      <div className="mx-auto max-w-md p-6 flex flex-col items-center gap-6 text-center">
+        <div className="mt-8 inline-flex items-center justify-center rounded-full bg-primary/10 p-4">
+          <Trophy className="h-8 w-8 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-foreground">You finished!</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your score: <strong className="text-foreground">{myParticipant?.score ?? 0} pts</strong>
+          </p>
+        </div>
+        {opponentDone ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Calculating results…
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Waiting for {opponent?.display_name ?? "opponent"} to finish…
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {opponent?.display_name ?? "Opponent"} is on question{" "}
+              {(opponent?.current_question ?? 0) + 1} / {totalQuestions}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ─── Render: Active Game ──────────────────────────────────────────────────
+  const currentQ = questions[myCurrentQuestion];
+
   if (!currentQ) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -600,26 +594,25 @@ export function RoomClient({
     );
   }
 
-  const totalTimeMins = Math.floor(totalTimeLeft / 60);
-  const totalTimeSecs = Math.floor(totalTimeLeft % 60);
-  const totalTimeDisplay = `${totalTimeMins}:${String(totalTimeSecs).padStart(2, "0")}`;
+  const questionTimeSecs = Math.ceil(questionTimeLeft);
 
   return (
     <div className="mx-auto max-w-2xl p-6 pb-20">
-      {/* Header: scores + total timer */}
+      {/* Header: scores */}
       <div className="mb-6 flex items-center gap-3">
-        {/* My score */}
         <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
           <p className="text-xs text-muted-foreground capitalize">
             {myParticipant?.display_name ?? "You"}
           </p>
           <p className="text-2xl font-bold text-foreground">
             {myParticipant?.score ?? 0}
-            <span className="text-xs font-normal text-muted-foreground ml-0.5">pts</span>
+            <span className="text-xs font-normal text-muted-foreground ml-0.5">
+              pts
+            </span>
           </p>
         </div>
 
-        {/* Total timer */}
+        {/* Per-question timer */}
         <div className="flex flex-col items-center gap-1">
           <div
             className={cn(
@@ -629,7 +622,7 @@ export function RoomClient({
                 : "border-border text-foreground"
             )}
           >
-            {totalTimeDisplay}
+            {questionTimeSecs}
           </div>
           <div className="h-1 w-14 overflow-hidden rounded-full bg-muted">
             <div
@@ -637,32 +630,39 @@ export function RoomClient({
                 "h-full transition-all duration-500",
                 timerUrgent ? "bg-destructive" : "bg-primary"
               )}
-              style={{ width: `${totalTimePct}%` }}
+              style={{ width: `${questionTimePct}%` }}
             />
           </div>
         </div>
 
-        {/* Opponent score */}
         <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
           <p className="text-xs text-muted-foreground capitalize">
             {opponent?.display_name ?? "Waiting…"}
           </p>
           <p className="text-2xl font-bold text-foreground">
             {opponent?.score ?? 0}
-            <span className="text-xs font-normal text-muted-foreground ml-0.5">pts</span>
+            <span className="text-xs font-normal text-muted-foreground ml-0.5">
+              pts
+            </span>
           </p>
+          {opponent && (
+            <p className="text-xs text-muted-foreground">
+              Q{Math.min(opponent.current_question + 1, totalQuestions)}/
+              {totalQuestions}
+            </p>
+          )}
         </div>
       </div>
 
       {/* Question progress */}
       <div className="mb-4 flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          Question {room.current_question + 1} / {totalQuestions}
+          Question {myCurrentQuestion + 1} / {totalQuestions}
         </span>
         <div className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
           <span className={cn(timerUrgent && "text-destructive font-medium")}>
-            {totalTimeDisplay} left
+            {questionTimeSecs}s left
           </span>
         </div>
       </div>
@@ -672,7 +672,7 @@ export function RoomClient({
         <div
           className="h-full bg-primary transition-all"
           style={{
-            width: `${(room.current_question / totalQuestions) * 100}%`,
+            width: `${(myCurrentQuestion / totalQuestions) * 100}%`,
           }}
         />
       </div>
@@ -694,26 +694,26 @@ export function RoomClient({
         <div className="mt-4 space-y-2">
           {currentQ.options.map((opt: string, idx: number) => {
             const isSelected = myAnswerIndex === idx;
-            const isRevealed = revealedCorrectIndex !== null;
-            const isCorrectAnswer = isRevealed && revealedCorrectIndex === idx;
-            const isWrongSelected = isRevealed && isSelected && !isCorrectAnswer;
+            const isCorrectAnswer = flash !== null && flash.correctIndex === idx;
+            const isWrongSelected =
+              flash !== null && isSelected && !isCorrectAnswer;
 
             return (
               <button
                 key={idx}
-                onClick={() => !questionClosed && handleAnswer(idx)}
-                disabled={myAnswerIndex !== null}
+                onClick={() => flash === null && myAnswerIndex === null && handleAnswer(idx)}
+                disabled={myAnswerIndex !== null || flash !== null}
                 className={cn(
                   "flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left text-sm transition-colors",
                   isCorrectAnswer
                     ? "border-green-500 bg-green-50 text-foreground dark:bg-green-900/20"
                     : isWrongSelected
-                      ? "border-destructive bg-destructive/10 text-foreground"
-                      : isSelected
-                        ? "border-primary bg-primary/5 text-foreground"
-                        : myAnswerIndex !== null
-                          ? "border-border bg-muted/30 text-muted-foreground cursor-default"
-                          : "border-border bg-background text-foreground hover:border-muted-foreground/40 hover:bg-muted/50"
+                    ? "border-destructive bg-destructive/10 text-foreground"
+                    : isSelected
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : myAnswerIndex !== null || flash !== null
+                    ? "border-border bg-muted/30 text-muted-foreground cursor-default"
+                    : "border-border bg-background text-foreground hover:border-muted-foreground/40 hover:bg-muted/50"
                 )}
               >
                 <span
@@ -722,10 +722,10 @@ export function RoomClient({
                     isCorrectAnswer
                       ? "bg-green-500 text-white"
                       : isWrongSelected
-                        ? "bg-destructive text-destructive-foreground"
-                        : isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
+                      ? "bg-destructive text-destructive-foreground"
+                      : isSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
                   )}
                 >
                   {isCorrectAnswer ? (
@@ -746,60 +746,41 @@ export function RoomClient({
       {/* Status row */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          {myAnswerIndex !== null ? (
+          {flash !== null ? (
             <span
               className={cn(
                 "flex items-center gap-1 text-sm font-medium",
-                myAnswerCorrect === true
+                flash.isCorrect
                   ? "text-green-600 dark:text-green-400"
-                  : myAnswerCorrect === false
-                    ? "text-destructive"
-                    : "text-muted-foreground"
+                  : "text-destructive"
               )}
             >
-              {myAnswerCorrect === true ? (
+              {flash.isCorrect ? (
                 <Check className="h-4 w-4" />
-              ) : myAnswerCorrect === false ? (
+              ) : (
                 <X className="h-4 w-4" />
-              ) : null}
-              {myAnswerCorrect === true
-                ? `Correct! +${myLastPoints ?? 10} pts`
-                : myAnswerCorrect === false
-                  ? "Wrong"
-                  : "Answered — waiting…"}
+              )}
+              {flash.isCorrect
+                ? `Correct! +${flash.points} pts`
+                : "Wrong — next question in 2s"}
+            </span>
+          ) : myAnswerIndex !== null ? (
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving…
             </span>
           ) : (
             <span className="text-muted-foreground">Pick an answer</span>
-          )}
-
-          {opponentAnswered && (
-            <span className="text-xs text-muted-foreground">
-              · {opponent?.display_name ?? "Opponent"} answered
-            </span>
           )}
         </div>
 
         {answerError && (
           <span className="text-xs text-destructive">{answerError}</span>
         )}
-
-        {/* Host-only manual advance */}
-        {isHost && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleNext}
-            disabled={advancing}
-            className="text-xs"
-          >
-            {advancing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            {room.current_question + 1 >= totalQuestions ? "Finish" : "Next →"}
-          </Button>
-        )}
       </div>
 
-      {/* Explanation reveal */}
-      {revealedCorrectIndex !== null && (
+      {/* Explanation shown during flash */}
+      {flash !== null && (
         <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
           <p className="text-xs font-medium text-muted-foreground mb-1">
             Explanation

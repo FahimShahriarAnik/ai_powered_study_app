@@ -259,6 +259,8 @@ export interface Database {
           user_id: string;
           display_name: string;
           score: number;
+          current_question: number;
+          finished_at: string | null;
           joined_at: string;
         };
         Insert: {
@@ -267,6 +269,8 @@ export interface Database {
           user_id: string;
           display_name: string;
           score?: number;
+          current_question?: number;
+          finished_at?: string | null;
           joined_at?: string;
         };
         Update: {
@@ -275,6 +279,8 @@ export interface Database {
           user_id?: string;
           display_name?: string;
           score?: number;
+          current_question?: number;
+          finished_at?: string | null;
           joined_at?: string;
         };
         Relationships: [];

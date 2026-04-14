@@ -39,7 +39,7 @@ export async function GET(
     return NextResponse.json({ error: "Not a participant" }, { status: 403 });
   }
 
-  // Fetch all participants
+  // Fetch all participants (includes current_question + finished_at)
   const { data: participants } = await supabase
     .from("room_participants")
     .select("*")
@@ -65,18 +65,10 @@ export async function GET(
     created_at: q.created_at,
   }));
 
-  // Fetch answers for current question
-  const { data: currentAnswers } = await supabase
-    .from("room_answers")
-    .select("id, participant_id, question_index, is_correct, answered_at")
-    .eq("room_id", roomId)
-    .eq("question_index", room.current_question);
-
   return NextResponse.json({
     room,
     participants: participants ?? [],
     questions: sanitized,
     myParticipantId: participant.id,
-    currentAnswers: currentAnswers ?? [],
   });
 }

@@ -66,18 +66,10 @@ export default async function RoomPage({
     created_at: q.created_at,
   }));
 
-  // Fetch existing answers for current question (state rehydration on refresh)
-  const { data: currentAnswers } = await supabase
-    .from("room_answers")
-    .select("id, participant_id, question_index, is_correct, answered_at")
-    .eq("room_id", roomId)
-    .eq("question_index", room.current_question);
-
   return (
     <RoomClient
       initialRoom={room}
       initialParticipants={participants ?? []}
-      initialCurrentAnswers={currentAnswers ?? []}
       initialQuestions={sanitized}
       myParticipantId={myParticipant.id}
       isHost={room.host_user_id === user.id}
