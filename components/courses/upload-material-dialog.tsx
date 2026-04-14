@@ -255,7 +255,7 @@ export function UploadMaterialDialog({ courseId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}>
+      <DialogTrigger className={cn(buttonVariants({ variant: "outline" }), "gap-2")}>
         <Plus className="h-4 w-4" />
         Add Material
       </DialogTrigger>

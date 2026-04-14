@@ -29,14 +29,14 @@ export function MaterialCard({ material, quizzes, courseId }: Props) {
     <div className="rounded-lg border border-border bg-card space-y-0">
       {/* Material header */}
       <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="flex items-center justify-between gap-3 p-4">
+        <div className="flex items-center justify-between gap-3 p-5">
           <div className="flex min-w-0 items-center gap-3">
-            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">
+              <p className="truncate text-base font-semibold text-foreground">
                 {material.title}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {material.char_count.toLocaleString()} chars ·{" "}
                 {new Date(material.created_at).toLocaleDateString()}
               </p>
@@ -49,7 +49,7 @@ export function MaterialCard({ material, quizzes, courseId }: Props) {
               className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
             >
               <ChevronDown
-                className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                className={`h-5 w-5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
               />
               <span className="sr-only">Toggle preview</span>
             </CollapsibleTrigger>
@@ -57,7 +57,7 @@ export function MaterialCard({ material, quizzes, courseId }: Props) {
         </div>
 
         <CollapsibleContent>
-          <div className="border-t border-border px-4 pb-4 pt-3">
+          <div className="border-t border-border px-5 pb-5 pt-4">
             <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
               {preview}
               {hasMore && (
@@ -83,8 +83,8 @@ export function MaterialCard({ material, quizzes, courseId }: Props) {
 
       {/* Quizzes */}
       {quizzes.length > 0 && (
-        <div className="border-t border-border px-4 pb-4 pt-3 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="border-t border-border px-5 pb-5 pt-4 space-y-3">
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             {quizzes.length} {quizzes.length === 1 ? "Quiz" : "Quizzes"}
           </p>
           <div className="space-y-2">

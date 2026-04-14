@@ -232,7 +232,6 @@ export function CourseChatSheet({
       {/* Trigger (only rendered when not controlled externally) */}
       {!controlled && (
         <Button
-          size="sm"
           className="gap-2 shadow-sm"
           onClick={() => setSheetOpen(true)}
         >

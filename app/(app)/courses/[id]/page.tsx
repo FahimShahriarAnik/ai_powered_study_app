@@ -89,7 +89,7 @@ export default async function CoursePage({
             {materialList.length} / 10 materials
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {materialList.length > 0 && (
             <CourseChatSheet courseId={course.id} courseName={course.name} />
           )}

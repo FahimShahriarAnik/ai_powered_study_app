@@ -20,15 +20,16 @@ export function AppSidebar({ courses }: Props) {
   return (
     <div className="flex h-full flex-col bg-background">
 
-      <ScrollArea className="flex-1 px-3 py-3">
-        <nav className="mb-4 space-y-1">
+      <ScrollArea className="flex-1 px-3 py-4">
+        {/* Main nav */}
+        <nav className="mb-4 space-y-1.5">
           <Link
             href="/dashboard"
             className={cn(
               buttonVariants({
                 variant: pathname === "/dashboard" ? "secondary" : "ghost",
               }),
-              "w-full justify-start gap-2 text-sm"
+              "h-11 w-full justify-start gap-3 text-base font-medium"
             )}
           >
             <LayoutDashboard className="h-5 w-5 shrink-0" />
@@ -40,7 +41,7 @@ export function AppSidebar({ courses }: Props) {
               buttonVariants({
                 variant: pathname === "/analytics" ? "secondary" : "ghost",
               }),
-              "w-full justify-start gap-2 text-sm"
+              "h-11 w-full justify-start gap-3 text-base font-medium"
             )}
           >
             <BarChart3 className="h-5 w-5 shrink-0" />
@@ -50,9 +51,12 @@ export function AppSidebar({ courses }: Props) {
             href="/rooms"
             className={cn(
               buttonVariants({
-                variant: pathname === "/rooms" || pathname.startsWith("/rooms/") ? "secondary" : "ghost",
+                variant:
+                  pathname === "/rooms" || pathname.startsWith("/rooms/")
+                    ? "secondary"
+                    : "ghost",
               }),
-              "w-full justify-start gap-2 text-sm"
+              "h-11 w-full justify-start gap-3 text-base font-medium"
             )}
           >
             <Swords className="h-5 w-5 shrink-0" />
@@ -60,11 +64,12 @@ export function AppSidebar({ courses }: Props) {
           </Link>
         </nav>
 
-        <Separator className="my-2" />
+        <Separator className="my-3" />
 
-        <div className="mt-3">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        {/* Courses list */}
+        <div className="mt-4">
+          <div className="mb-2.5 flex items-center justify-between px-1">
+            <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
               Courses
             </span>
             <Link
@@ -74,17 +79,17 @@ export function AppSidebar({ courses }: Props) {
                 "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               <span className="sr-only">New course</span>
             </Link>
           </div>
 
           {courses.length === 0 ? (
-            <p className="px-1 py-3 text-xs text-muted-foreground">
+            <p className="px-2 py-3 text-sm text-muted-foreground">
               No courses yet.
             </p>
           ) : (
-            <nav className="space-y-0.5">
+            <nav className="space-y-1">
               {courses.map((course) => {
                 const isActive = pathname === `/courses/${course.id}`;
                 return (
@@ -95,11 +100,11 @@ export function AppSidebar({ courses }: Props) {
                       buttonVariants({
                         variant: isActive ? "secondary" : "ghost",
                       }),
-                      "w-full justify-start gap-2 text-sm h-auto py-2",
+                      "w-full justify-start gap-2.5 text-sm h-auto py-2.5",
                       !isActive && "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                    <BookOpen className="h-4 w-4 shrink-0" />
                     <span className="flex-1 truncate text-left">
                       {course.name}
                     </span>

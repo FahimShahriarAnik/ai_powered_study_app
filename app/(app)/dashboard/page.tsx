@@ -78,22 +78,22 @@ export default async function DashboardPage({
             Your courses and study progress
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <SmartQuizDialog />
           <NewCourseDialog open={showNewDialog} />
         </div>
       </div>
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
         {[
           { label: "Courses", value: courseList.length },
           { label: "Materials", value: materialsCount },
           { label: "Quizzes taken", value: quizzesTakenCount },
         ].map(({ label, value }) => (
-          <Card key={label} className="p-4">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
+          <Card key={label} className="p-6">
+            <p className="text-sm font-medium text-muted-foreground">{label}</p>
+            <p className="mt-2 text-4xl font-bold text-foreground">
               {value}
             </p>
           </Card>
@@ -111,26 +111,26 @@ export default async function DashboardPage({
           <NewCourseDialog triggerLabel="Create course" className="mt-4" />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {courseList.map((course) => (
             <Link key={course.id} href={`/courses/${course.id}`}>
-              <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base leading-snug">
+              <Card className="h-full cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg leading-snug">
                     {course.name}
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {new Date(course.created_at).toLocaleDateString()}
                   </p>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex gap-3 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <FileText className="h-3.5 w-3.5" />
+                  <div className="flex gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="h-4 w-4" />
                       {materialsPerCourse.get(course.id) ?? 0} material{(materialsPerCourse.get(course.id) ?? 0) !== 1 ? "s" : ""}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Zap className="h-3.5 w-3.5" />
+                    <span className="flex items-center gap-1.5">
+                      <Zap className="h-4 w-4" />
                       {quizzesPerCourse.get(course.id) ?? 0} quiz{(quizzesPerCourse.get(course.id) ?? 0) !== 1 ? "zes" : ""}
                     </span>
                   </div>

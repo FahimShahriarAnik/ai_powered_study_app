@@ -43,12 +43,11 @@ export function GenerateQuizButton({ materialId }: Props) {
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
-        size="sm"
         onClick={handleGenerate}
         disabled={loading}
-        className="gap-1.5 text-xs shadow-sm"
+        className="gap-2 shadow-sm"
       >
-        <Zap className="h-3.5 w-3.5" />
+        <Zap className="h-4 w-4" />
         {loading ? "Generating…" : "Generate Quiz"}
       </Button>
       {error && (
