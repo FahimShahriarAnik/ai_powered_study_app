@@ -1,17 +1,22 @@
 import { createClient } from "@/lib/supabase/server";
 import { chunkText } from "@/lib/rag/chunker";
 import { google } from "@ai-sdk/google";
-import { embed } from "ai";
+import { embedMany } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// gemini-embedding-001: stable, 3072-dim, supports embedContent (not batchEmbedContents)
+// gemini-embedding-001: stable, 3072-dim
 const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
 
-// Larger chunks → fewer API calls → fewer 429s on free-tier RPM limits
 const MAX_TEXT_CHARS = 15_000; // per material
-const CHUNK_SIZE = 1_500;      // ~1 API call per 1500 chars
+const CHUNK_SIZE = 1_500;
 const CHUNK_OVERLAP = 150;
-const DELAY_MS = 500;          // wait between each embed call to stay under ~5 RPM
+
+// Micro-batch: send N chunks per API call, wait between batches.
+// Avoids both timeout (sequential 1-by-1) and quota spikes (single giant batch).
+const BATCH_SIZE = 10;   // chunks per embedMany call
+const BATCH_DELAY_MS = 1_200; // ms between batches — ~50 RPM ceiling
+
+export const maxDuration = 60;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -127,16 +132,18 @@ export async function POST(request: NextRequest) {
     `[embed-course] "${course.name}" — ${materials.length} materials, ${allChunks.length} chunks`
   );
 
-  // Sequential embed with delay to respect free-tier RPM limits (~5 RPM)
+  // Micro-batch embed: N chunks per call, delay between batches.
+  // Sequential 1-by-1 timeouts on Vercel; a single giant batch spikes quota.
   const embeddings: number[][] = [];
   try {
-    for (let i = 0; i < allChunks.length; i++) {
-      if (i > 0) await sleep(DELAY_MS);
-      const { embedding } = await embed({
+    for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+      if (i > 0) await sleep(BATCH_DELAY_MS);
+      const batch = allChunks.slice(i, i + BATCH_SIZE).map((c) => c.content);
+      const { embeddings: batchEmbeddings } = await embedMany({
         model: EMBEDDING_MODEL,
-        value: allChunks[i].content,
+        values: batch,
       });
-      embeddings.push(embedding);
+      embeddings.push(...batchEmbeddings);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Embedding failed";
