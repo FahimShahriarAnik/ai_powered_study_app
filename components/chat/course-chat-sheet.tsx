@@ -13,7 +13,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { Bot, Loader2, RefreshCw, Send, User } from "lucide-react";
+import { Bot, Loader2, Send, User } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,14 +37,6 @@ interface Props {
   onOpenChange?: (open: boolean) => void;
 }
 
-type EmbedStatus =
-  | "unknown"
-  | "checking"
-  | "missing"
-  | "ready"
-  | "embedding"
-  | "error";
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function uid(): string {
@@ -64,11 +56,6 @@ export function CourseChatSheet({
   const sheetOpen = controlled ? open : internalOpen;
   const setSheetOpen = controlled ? onOpenChange : setInternalOpen;
 
-  // Embedding state
-  const [embedStatus, setEmbedStatus] = useState<EmbedStatus>("unknown");
-  const [embedError, setEmbedError] = useState<string | null>(null);
-  const [chunkCount, setChunkCount] = useState(0);
-
   // Material filter state
   const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
@@ -87,11 +74,9 @@ export function CourseChatSheet({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Check embed status + fetch materials when sheet first opens
+  // Fetch materials and select all by default when sheet opens
   useEffect(() => {
     if (!sheetOpen) return;
-    if (embedStatus !== "unknown") return;
-    void checkEmbedStatus();
     void fetchMaterials();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetOpen]);
@@ -107,73 +92,20 @@ export function CourseChatSheet({
       .order("created_at", { ascending: true });
     const opts: MaterialOption[] = data ?? [];
     setMaterialOptions(opts);
-    setSelectedMaterialIds(new Set()); // user must pick explicitly
+    // Select all materials by default
+    setSelectedMaterialIds(new Set(opts.map((m) => m.id)));
   }
 
   function toggleMaterial(id: string) {
     setSelectedMaterialIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
-        if (next.size === 1) return prev; // keep at least one selected
         next.delete(id);
       } else {
         next.add(id);
       }
       return next;
     });
-  }
-
-  // ── Embedding ───────────────────────────────────────────────────────────────
-
-  async function checkEmbedStatus() {
-    setEmbedStatus("checking");
-    setEmbedError(null);
-    try {
-      const res = await fetch(`/api/embed-course?courseId=${courseId}`);
-      if (!res.ok) throw new Error("Failed to check status");
-      const data = (await res.json()) as {
-        hasEmbeddings: boolean;
-        chunkCount: number;
-      };
-      setChunkCount(data.chunkCount);
-      setEmbedStatus(data.hasEmbeddings ? "ready" : "missing");
-    } catch {
-      setEmbedStatus("error");
-      setEmbedError("Could not reach the server. Please try again.");
-    }
-  }
-
-  async function handleEmbed() {
-    setEmbedStatus("embedding");
-    setEmbedError(null);
-    try {
-      const res = await fetch("/api/embed-course", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId,
-          materialIds: selectedMaterialIds.size > 0
-            ? Array.from(selectedMaterialIds)
-            : undefined, // undefined = embed all
-        }),
-      });
-      const data = (await res.json()) as {
-        chunksCreated?: number;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Embedding failed");
-      setChunkCount(data.chunksCreated ?? 0);
-      setEmbedStatus("ready");
-    } catch (err) {
-      setEmbedError(err instanceof Error ? err.message : "Embedding failed");
-      setEmbedStatus("error");
-    }
-  }
-
-  async function handleReEmbed() {
-    setEmbedStatus("unknown");
-    setChunkCount(0);
-    await handleEmbed();
   }
 
   // ── Streaming chat ──────────────────────────────────────────────────────────
@@ -206,6 +138,10 @@ export function CourseChatSheet({
         content: m.content,
       }));
 
+      // Empty selection = send undefined (route treats missing = all materials)
+      const materialIdsPayload =
+        selectedMaterialIds.size > 0 ? Array.from(selectedMaterialIds) : undefined;
+
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -213,7 +149,7 @@ export function CourseChatSheet({
           body: JSON.stringify({
             messages: historyForApi,
             courseId,
-            materialIds: Array.from(selectedMaterialIds),
+            materialIds: materialIdsPayload,
           }),
           signal: abortRef.current.signal,
         });
@@ -305,266 +241,144 @@ export function CourseChatSheet({
                   {courseName}
                 </SheetDescription>
               </div>
-              {embedStatus === "ready" && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => void handleReEmbed()}
-                  title={`${chunkCount} chunks indexed — click to re-index`}
-                  className="text-muted-foreground"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span className="sr-only">Re-index materials</span>
-                </Button>
-              )}
             </div>
           </SheetHeader>
 
           {/* Body */}
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Embedding gate */}
-            {embedStatus !== "ready" && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-                {(embedStatus === "checking" || embedStatus === "unknown") && (
-                  <>
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Checking materials…
-                    </p>
-                  </>
-                )}
-
-                {embedStatus === "embedding" && (
-                  <>
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Indexing course materials
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Building AI embeddings — this takes ~10–30 seconds…
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {embedStatus === "missing" && (
-                  <>
-                    <Bot className="h-10 w-10 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Materials not yet indexed
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Index your materials once to enable AI-powered chat.
-                      </p>
-                    </div>
-
-                    {/* Material selector — shown before indexing so user can pick */}
-                    {materialOptions.length > 0 && (
-                      <div className="w-full space-y-1.5 text-left">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Materials ({selectedMaterialIds.size}/{materialOptions.length} selected)
-                        </p>
-                        <div className="max-h-36 overflow-y-auto rounded-md border border-border">
-                          {materialOptions.map((m) => {
-                            const checked = selectedMaterialIds.has(m.id);
-                            return (
-                              <label
-                                key={m.id}
-                                className={cn(
-                                  "flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-muted/40",
-                                  checked && "bg-primary/5"
-                                )}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => toggleMaterial(m.id)}
-                                  className="h-3.5 w-3.5 accent-primary"
-                                />
-                                <span
-                                  className={cn(
-                                    "flex-1 truncate leading-tight",
-                                    checked ? "text-foreground" : "text-muted-foreground"
-                                  )}
-                                >
-                                  {m.title}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <Button
-                      size="sm"
-                      disabled={selectedMaterialIds.size === 0}
-                      onClick={() => void handleEmbed()}
+            {/* Material filter pills */}
+            {materialOptions.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
+                {materialOptions.map((m) => {
+                  const active = selectedMaterialIds.has(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleMaterial(m.id)}
+                      className={cn(
+                        "max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                        active
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                      )}
+                      title={m.title}
                     >
-                      Prepare for Chat
-                    </Button>
-                  </>
-                )}
-
-                {embedStatus === "error" && (
-                  <>
-                    <p className="max-w-xs text-sm text-destructive">
-                      {embedError}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void checkEmbedStatus()}
-                    >
-                      Retry
-                    </Button>
-                  </>
-                )}
+                      {m.title}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
-            {/* Chat UI */}
-            {embedStatus === "ready" && (
-              <>
-                {/* Material filter pills */}
-                {materialOptions.length > 1 && (
-                  <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
-                    {materialOptions.map((m) => {
-                      const active = selectedMaterialIds.has(m.id);
-                      return (
-                        <button
-                          key={m.id}
-                          onClick={() => toggleMaterial(m.id)}
-                          className={cn(
-                            "max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                            active
-                              ? "border-primary bg-primary/10 text-foreground"
-                              : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
-                          )}
-                          title={m.title}
-                        >
-                          {m.title}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+            <ScrollArea className="flex-1 px-4 py-3">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <Bot className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">
+                    Ask anything about {courseName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    &ldquo;Explain [concept]&rdquo; &middot;{" "}
+                    &ldquo;Quiz me on [topic]&rdquo; &middot;{" "}
+                    &ldquo;Summarize key points&rdquo;
+                  </p>
+                </div>
+              )}
 
-                <ScrollArea className="flex-1 px-4 py-3">
-                  {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                      <Bot className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm font-medium text-foreground">
-                        Ask anything about {courseName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        &ldquo;Explain [concept]&rdquo; &middot;{" "}
-                        &ldquo;Quiz me on [topic]&rdquo; &middot;{" "}
-                        &ldquo;Summarize key points&rdquo;
-                      </p>
+              <div className="space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start gap-2.5 ${
+                      msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                    }`}
+                  >
+                    {/* Avatar */}
+                    <div
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {msg.role === "user" ? (
+                        <User className="h-3.5 w-3.5" />
+                      ) : (
+                        <Bot className="h-3.5 w-3.5" />
+                      )}
                     </div>
-                  )}
 
-                  <div className="space-y-4">
-                    {messages.map((msg) => (
+                    {/* Bubble + sources */}
+                    <div className="flex max-w-[80%] flex-col gap-1">
                       <div
-                        key={msg.id}
-                        className={`flex items-start gap-2.5 ${
+                        className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                           msg.role === "user"
-                            ? "flex-row-reverse"
-                            : "flex-row"
+                            ? "rounded-tr-sm bg-primary text-primary-foreground"
+                            : "rounded-tl-sm bg-muted text-foreground"
                         }`}
                       >
-                        {/* Avatar */}
-                        <div
-                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                            msg.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {msg.role === "user" ? (
-                            <User className="h-3.5 w-3.5" />
-                          ) : (
-                            <Bot className="h-3.5 w-3.5" />
-                          )}
-                        </div>
-
-                        {/* Bubble + sources */}
-                        <div className="flex max-w-[80%] flex-col gap-1">
-                          <div
-                            className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                              msg.role === "user"
-                                ? "rounded-tr-sm bg-primary text-primary-foreground"
-                                : "rounded-tl-sm bg-muted text-foreground"
-                            }`}
-                          >
-                            {msg.content === "" && msg.role === "assistant" ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : (
-                              msg.content.split("\n").map((line, i, arr) => (
-                                <span key={i}>
-                                  {line}
-                                  {i < arr.length - 1 && <br />}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                          {/* Cited sources — only for assistant messages with sources */}
-                          {msg.role === "assistant" &&
-                            msg.sources &&
-                            msg.sources.length > 0 &&
-                            msg.content.length > 0 && (
-                              <p className="pl-1 text-[10px] text-muted-foreground">
-                                From:{" "}
-                                {msg.sources.map((s, i) => (
-                                  <span key={i}>
-                                    <span className="font-medium text-foreground/70">
-                                      {s}
-                                    </span>
-                                    {i < msg.sources!.length - 1 && ", "}
-                                  </span>
-                                ))}
-                              </p>
-                            )}
-                        </div>
+                        {msg.content === "" && msg.role === "assistant" ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          msg.content.split("\n").map((line, i, arr) => (
+                            <span key={i}>
+                              {line}
+                              {i < arr.length - 1 && <br />}
+                            </span>
+                          ))
+                        )}
                       </div>
-                    ))}
-
-                    {streamError && (
-                      <p className="text-xs text-destructive">{streamError}</p>
-                    )}
-
-                    <div ref={messagesEndRef} />
+                      {/* Cited sources — only for assistant messages with sources */}
+                      {msg.role === "assistant" &&
+                        msg.sources &&
+                        msg.sources.length > 0 &&
+                        msg.content.length > 0 && (
+                          <p className="pl-1 text-[10px] text-muted-foreground">
+                            From:{" "}
+                            {msg.sources.map((s, i) => (
+                              <span key={i}>
+                                <span className="font-medium text-foreground/70">
+                                  {s}
+                                </span>
+                                {i < msg.sources!.length - 1 && ", "}
+                              </span>
+                            ))}
+                          </p>
+                        )}
+                    </div>
                   </div>
-                </ScrollArea>
+                ))}
 
-                {/* Input */}
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex items-center gap-2 border-t border-border px-3 py-3"
-                >
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about your materials…"
-                    disabled={isStreaming}
-                    className="flex-1 text-sm"
-                    autoComplete="off"
-                  />
-                  <Button
-                    type="submit"
-                    size="icon-sm"
-                    disabled={isStreaming || !input.trim()}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span className="sr-only">Send</span>
-                  </Button>
-                </form>
-              </>
-            )}
+                {streamError && (
+                  <p className="text-xs text-destructive">{streamError}</p>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            {/* Input */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex items-center gap-2 border-t border-border px-3 py-3"
+            >
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about your materials…"
+                disabled={isStreaming}
+                className="flex-1 text-sm"
+                autoComplete="off"
+              />
+              <Button
+                type="submit"
+                size="icon-sm"
+                disabled={isStreaming || !input.trim()}
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span className="sr-only">Send</span>
+              </Button>
+            </form>
           </div>
         </SheetContent>
       </Sheet>

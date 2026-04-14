@@ -1,20 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { google } from "@ai-sdk/google";
-import { embed, streamText } from "ai";
+import { streamText } from "ai";
 import { NextRequest } from "next/server";
-
-// gemini-embedding-002: fresh quota, drop-in replacement
-const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-002");
-
-const MATCH_COUNT = 5; // number of relevant chunks to retrieve
-
-type MatchedChunk = {
-  id: string;
-  material_id: string;
-  content: string;
-  chunk_index: number;
-  similarity: number;
-};
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -30,7 +17,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     messages: { role: string; content: string }[];
     courseId: string;
-    materialIds?: string[]; // optional filter — null/empty = search all course materials
+    materialIds?: string[]; // optional filter — null/empty = all course materials
   };
 
   const { messages, courseId, materialIds } = body;
@@ -54,67 +41,24 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Extract the latest user message for RAG retrieval
-  const lastUserMessage = [...messages]
-    .reverse()
-    .find((m) => m.role === "user");
-  const userQuery = lastUserMessage?.content ?? "";
+  // Load full raw_text from materials (filtered by materialIds if provided)
+  let query = supabase
+    .from("materials")
+    .select("id, title, raw_text")
+    .eq("course_id", courseId)
+    .order("created_at", { ascending: true });
 
-  // Embed the user query
-  let queryEmbedding: number[];
-  try {
-    const { embedding } = await embed({
-      model: EMBEDDING_MODEL,
-      value: userQuery,
-    });
-    queryEmbedding = embedding;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Embedding failed";
-    console.error("[chat] Embedding error:", msg);
-    return new Response(JSON.stringify({ error: msg }), { status: 500 });
-  }
-
-  // Semantic similarity search via Supabase RPC
-  // Build RPC params — pass material_ids only when a non-empty subset is selected
-  const rpcParams: Record<string, unknown> = {
-    query_embedding: queryEmbedding,
-    course_id_filter: courseId,
-    match_count: MATCH_COUNT,
-  };
   if (materialIds && materialIds.length > 0) {
-    rpcParams.material_ids = materialIds;
+    query = query.in("id", materialIds);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: chunks, error: rpcError } = await (supabase as any).rpc(
-    "match_material_chunks",
-    rpcParams
-  );
+  const { data: materials } = await query;
 
-  if (rpcError) {
-    console.error("[chat] RPC error:", rpcError.message);
-    // Continue without context rather than failing hard
-  }
+  const contextBlock = materials?.length
+    ? materials.map((m) => `## ${m.title}\n\n${m.raw_text}`).join("\n\n---\n\n")
+    : "No course materials available.";
 
-  const retrievedChunks: MatchedChunk[] = chunks ?? [];
-
-  // Resolve unique material titles for cited sources
-  const uniqueMaterialIds = [...new Set(retrievedChunks.map((c) => c.material_id))];
-  let sourceTitles: string[] = [];
-  if (uniqueMaterialIds.length > 0) {
-    const { data: sourceMaterials } = await supabase
-      .from("materials")
-      .select("id, title")
-      .in("id", uniqueMaterialIds);
-    const titleById = new Map((sourceMaterials ?? []).map((m) => [m.id, m.title]));
-    sourceTitles = uniqueMaterialIds.map((id) => titleById.get(id) ?? "Unknown material");
-  }
-
-  // Build context block
-  const contextBlock =
-    retrievedChunks.length > 0
-      ? retrievedChunks.map((c) => c.content).join("\n\n---\n\n")
-      : "No relevant material found for this query.";
+  const sourceTitles = (materials ?? []).map((m) => m.title);
 
   const systemPrompt = `You are an AI study coach for the course "${course.name}".
 Your job is to help students understand and study the course materials.
@@ -139,8 +83,6 @@ ${contextBlock}`;
     })),
   });
 
-  // Use toTextStreamResponse — matches the proven streaming pattern used by ELI5
-  // Include cited source titles as a response header (zero token cost)
   const streamResponse = result.toTextStreamResponse();
   const headers = new Headers(streamResponse.headers);
   headers.set("X-Sources", JSON.stringify(sourceTitles));
