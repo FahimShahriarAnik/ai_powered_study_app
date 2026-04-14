@@ -1,4 +1,4 @@
-import { PDFParse } from "pdf-parse";
+import { extractText } from "unpdf";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -91,10 +91,9 @@ export async function POST(request: NextRequest) {
   let rawText: string;
   let numPages: number;
   try {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    rawText = result.text.trim();
-    numPages = result.total;
+    const { text, totalPages } = await extractText(new Uint8Array(buffer), { mergePages: true });
+    rawText = (text as string).trim();
+    numPages = totalPages;
   } catch {
     // Clean up orphaned storage file
     await supabase.storage.from("materials").remove([storageFilePath]);
