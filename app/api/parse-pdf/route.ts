@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/types/database";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+export const maxDuration = 60;
+
 const MAX_PAGES = 50;
 const MAX_MATERIALS_PER_COURSE = 10;
 
@@ -27,55 +28,66 @@ export async function POST(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  const courseId = formData.get("courseId") as string | null;
-  const title = formData.get("title") as string | null;
+  let body: { storageFilePath?: string; courseId?: string; title?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-  if (!file || !courseId || !title) {
+  const { storageFilePath, courseId, title } = body;
+
+  if (!storageFilePath || !courseId || !title) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Verify course belongs to user
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .single();
+  // Verify the storage path belongs to this user (path starts with user.id/)
+  if (!storageFilePath.startsWith(`${user.id}/`)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
 
-  if (!course) {
+  // Parallel: verify course ownership + check material count
+  const [courseResult, countResult] = await Promise.all([
+    supabase.from("courses").select("id").eq("id", courseId).eq("user_id", user.id).single(),
+    supabase
+      .from("materials")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", courseId),
+  ]);
+
+  if (!courseResult.data) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
-  // Check material limit
-  const { count } = await supabase
-    .from("materials")
-    .select("id", { count: "exact", head: true })
-    .eq("course_id", courseId);
-
-  if ((count ?? 0) >= MAX_MATERIALS_PER_COURSE) {
+  if ((countResult.count ?? 0) >= MAX_MATERIALS_PER_COURSE) {
     return NextResponse.json(
       { error: `Courses are limited to ${MAX_MATERIALS_PER_COURSE} materials.` },
       { status: 400 }
     );
   }
 
-  // File size check
-  if (file.size > MAX_FILE_SIZE) {
+  // Download from Supabase Storage (client already uploaded it directly)
+  const { data: fileBlob, error: downloadError } = await supabase.storage
+    .from("materials")
+    .download(storageFilePath);
+
+  if (downloadError || !fileBlob) {
     return NextResponse.json(
-      { error: "PDF must be under 10 MB." },
-      { status: 400 }
+      { error: "Could not retrieve uploaded file." },
+      { status: 500 }
     );
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = Buffer.from(await fileBlob.arrayBuffer());
 
-  // Parse PDF using pdf-parse v2 class API
+  // Parse PDF
   let rawText: string;
   let numPages: number;
   try {
@@ -84,6 +96,8 @@ export async function POST(request: NextRequest) {
     rawText = result.text.trim();
     numPages = result.total;
   } catch {
+    // Clean up orphaned storage file
+    await supabase.storage.from("materials").remove([storageFilePath]);
     return NextResponse.json(
       { error: "Could not read PDF. Make sure it's a valid PDF file." },
       { status: 400 }
@@ -91,6 +105,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (numPages > MAX_PAGES) {
+    await supabase.storage.from("materials").remove([storageFilePath]);
     return NextResponse.json(
       { error: `PDF must be ${MAX_PAGES} pages or fewer (yours has ${numPages}).` },
       { status: 400 }
@@ -98,30 +113,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!rawText) {
+    await supabase.storage.from("materials").remove([storageFilePath]);
     return NextResponse.json(
       { error: "No text could be extracted. The PDF may be scanned/image-based." },
       { status: 400 }
     );
   }
 
-  // Upload to Supabase Storage
-  const filePath = `${user.id}/${courseId}/${Date.now()}-${file.name}`;
-  const { error: storageError } = await supabase.storage
-    .from("materials")
-    .upload(filePath, buffer, { contentType: "application/pdf" });
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("materials").getPublicUrl(storageFilePath);
 
-  if (storageError) {
-    return NextResponse.json(
-      { error: "Failed to upload file. " + storageError.message },
-      { status: 500 }
-    );
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from("materials")
-    .getPublicUrl(filePath);
-
-  // Save material record
   const { data: material, error: dbError } = await supabase
     .from("materials")
     .insert({
