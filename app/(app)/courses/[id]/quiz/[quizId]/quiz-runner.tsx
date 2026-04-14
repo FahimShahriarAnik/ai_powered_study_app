@@ -31,6 +31,7 @@ export function QuizRunner({
   const router = useRouter();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [confidenceRatings, setConfidenceRatings] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +80,7 @@ export function QuizRunner({
     const answerArr = Object.entries(answers).map(([questionId, selectedIndex]) => ({
       questionId,
       selectedIndex,
+      confidence: confidenceRatings[questionId] ?? null,
     }));
 
     const res = await submitQuizAttempt(attemptId, answerArr, notes);
@@ -159,6 +161,47 @@ export function QuizRunner({
             );
           })}
         </div>
+
+        {/* Confidence rating — optional, only shown after an answer is selected */}
+        {selected !== undefined && (
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">
+              How confident are you?{" "}
+              <span className="text-muted-foreground/50">(optional)</span>
+            </p>
+            <div className="flex gap-2">
+              {(
+                [
+                  { label: "Unsure", value: 1, icon: "🤔" },
+                  { label: "Maybe", value: 2, icon: "🤷" },
+                  { label: "Confident", value: 3, icon: "💡" },
+                ] as const
+              ).map(({ label, value, icon }) => {
+                const picked = confidenceRatings[current.id] === value;
+                return (
+                  <button
+                    key={value}
+                    onClick={() =>
+                      setConfidenceRatings((prev) => ({
+                        ...prev,
+                        [current.id]: picked ? 0 : value, // 0 = deselect
+                      }))
+                    }
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                      picked
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <span>{icon}</span>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Controls */}

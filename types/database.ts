@@ -166,6 +166,7 @@ export interface Database {
           question_id: string;
           selected_index: number;
           is_correct: boolean;
+          confidence: number | null; // 1=Unsure, 2=Maybe, 3=Confident, null=not rated
           created_at: string;
         };
         Insert: {
@@ -174,6 +175,7 @@ export interface Database {
           question_id: string;
           selected_index: number;
           is_correct: boolean;
+          confidence?: number | null;
           created_at?: string;
         };
         Update: {
@@ -182,6 +184,7 @@ export interface Database {
           question_id?: string;
           selected_index?: number;
           is_correct?: boolean;
+          confidence?: number | null;
           created_at?: string;
         };
         Relationships: [];

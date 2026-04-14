@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { AnswerRecord, Question, QuizAttempt } from "@/types/database";
-import { CheckCircle2, ChevronDown, Sparkles, StickyNote, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, RotateCcw, Sparkles, StickyNote, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -35,6 +35,9 @@ export function ResultsClient({
   const total = attempt.total;
   const score = attempt.score ?? 0;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+  const wrongCount = questions.filter(
+    (q) => recordByQuestion[q.id] && !recordByQuestion[q.id].is_correct
+  ).length;
 
   return (
     <div className="mx-auto max-w-3xl p-6">
@@ -81,9 +84,18 @@ export function ResultsClient({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
+          {wrongCount > 0 && (
+            <Link
+              href={`/courses/${courseId}/quiz/${quizId}?filter=wrong&fromAttempt=${attempt.id}`}
+              className={cn(buttonVariants({ size: "sm" }))}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Retry Wrong ({wrongCount})
+            </Link>
+          )}
           <Link
             href={`/courses/${courseId}/quiz/${quizId}`}
-            className={cn(buttonVariants({ size: "sm" }))}
+            className={cn(buttonVariants({ size: "sm", variant: wrongCount > 0 ? "outline" : "default" }))}
           >
             Retake Quiz
           </Link>

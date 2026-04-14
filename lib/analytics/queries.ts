@@ -6,6 +6,7 @@ export type AnswerWithQuestion = {
   attempt_id: string;
   question_id: string;
   is_correct: boolean;
+  confidence: number | null;
   created_at: string;
   question: {
     topic: string;
@@ -45,7 +46,7 @@ export async function getUserAnalyticsData(
     supabase
       .from("answer_records")
       .select(
-        `id, attempt_id, question_id, is_correct, created_at,
+        `id, attempt_id, question_id, is_correct, confidence, created_at,
          question:questions!answer_records_question_id_fkey(topic, difficulty)`
       )
       .order("created_at", { ascending: true }),

@@ -5,10 +5,13 @@ import type { Question } from "@/types/database";
 
 export default async function QuizRunnerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; quizId: string }>;
+  searchParams: Promise<{ filter?: string; fromAttempt?: string }>;
 }) {
   const { id, quizId } = await params;
+  const { filter, fromAttempt } = await searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -36,7 +39,23 @@ export default async function QuizRunnerPage({
     .eq("quiz_id", quizId)
     .order("position", { ascending: true });
 
-  const questions: Question[] = questionsRaw ?? [];
+  let questions: Question[] = questionsRaw ?? [];
+
+  if (questions.length === 0) notFound();
+
+  // Retry-wrong mode: filter to only incorrect questions from a prior attempt
+  if (filter === "wrong" && fromAttempt) {
+    const { data: wrongRecords } = await supabase
+      .from("answer_records")
+      .select("question_id")
+      .eq("attempt_id", fromAttempt)
+      .eq("is_correct", false);
+
+    if (wrongRecords && wrongRecords.length > 0) {
+      const wrongIds = new Set(wrongRecords.map((r) => r.question_id));
+      questions = questions.filter((q) => wrongIds.has(q.id));
+    }
+  }
 
   if (questions.length === 0) notFound();
 

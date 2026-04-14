@@ -19,6 +19,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  sources?: string[]; // material titles cited by this assistant response
 }
 
 interface Props {
@@ -176,6 +177,15 @@ export function CourseChatSheet({
 
         if (!res.body) throw new Error("No response body");
 
+        // Read cited sources from response header (set before streaming begins)
+        let sources: string[] = [];
+        const sourcesHeader = res.headers.get("X-Sources");
+        if (sourcesHeader) {
+          try {
+            sources = JSON.parse(sourcesHeader) as string[];
+          } catch {}
+        }
+
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
 
@@ -186,7 +196,7 @@ export function CourseChatSheet({
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
-                ? { ...m, content: m.content + chunk }
+                ? { ...m, content: m.content + chunk, sources }
                 : m
             )
           );
@@ -369,24 +379,43 @@ export function CourseChatSheet({
                           )}
                         </div>
 
-                        {/* Bubble */}
-                        <div
-                          className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                            msg.role === "user"
-                              ? "rounded-tr-sm bg-primary text-primary-foreground"
-                              : "rounded-tl-sm bg-muted text-foreground"
-                          }`}
-                        >
-                          {msg.content === "" && msg.role === "assistant" ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          ) : (
-                            msg.content.split("\n").map((line, i, arr) => (
-                              <span key={i}>
-                                {line}
-                                {i < arr.length - 1 && <br />}
-                              </span>
-                            ))
-                          )}
+                        {/* Bubble + sources */}
+                        <div className="flex max-w-[80%] flex-col gap-1">
+                          <div
+                            className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                              msg.role === "user"
+                                ? "rounded-tr-sm bg-primary text-primary-foreground"
+                                : "rounded-tl-sm bg-muted text-foreground"
+                            }`}
+                          >
+                            {msg.content === "" && msg.role === "assistant" ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              msg.content.split("\n").map((line, i, arr) => (
+                                <span key={i}>
+                                  {line}
+                                  {i < arr.length - 1 && <br />}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                          {/* Cited sources — only for assistant messages with sources */}
+                          {msg.role === "assistant" &&
+                            msg.sources &&
+                            msg.sources.length > 0 &&
+                            msg.content.length > 0 && (
+                              <p className="pl-1 text-[10px] text-muted-foreground">
+                                From:{" "}
+                                {msg.sources.map((s, i) => (
+                                  <span key={i}>
+                                    <span className="font-medium text-foreground/70">
+                                      {s}
+                                    </span>
+                                    {i < msg.sources!.length - 1 && ", "}
+                                  </span>
+                                ))}
+                              </p>
+                            )}
                         </div>
                       </div>
                     ))}

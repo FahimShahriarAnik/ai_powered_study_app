@@ -52,6 +52,7 @@ export async function getUserTopicStats(
     attempt_id: string;
     question_id: string;
     is_correct: boolean;
+    confidence: number | null;
     created_at: string;
     question: { topic: string; difficulty: string } | null;
     attempt: { user_id: string } | null;
@@ -64,6 +65,7 @@ export async function getUserTopicStats(
     attempt_id: r.attempt_id,
     question_id: r.question_id,
     is_correct: r.is_correct,
+    confidence: r.confidence,
     created_at: r.created_at,
     question: r.question!,
   }));
@@ -79,16 +81,29 @@ export async function getUserTopicStats(
   };
 }
 
+export type SmartQuizPreset = "weak" | "balanced" | "strong";
+
 export type SmartQuizPlan = {
   weakCount: number;
   mediumCount: number;
   strongCount: number;
   fallback: boolean;
+  preset: SmartQuizPreset;
+};
+
+const PRESET_DISTRIBUTIONS: Record<
+  SmartQuizPreset,
+  { weakPct: number; mediumPct: number; strongPct: number }
+> = {
+  weak: { weakPct: 0.6, mediumPct: 0.3, strongPct: 0.1 },
+  balanced: { weakPct: 0.4, mediumPct: 0.4, strongPct: 0.2 },
+  strong: { weakPct: 0.1, mediumPct: 0.3, strongPct: 0.6 },
 };
 
 export function planSmartQuiz(
   stats: UserTopicStats,
-  totalQuestions: number
+  totalQuestions: number,
+  preset: SmartQuizPreset = "balanced"
 ): SmartQuizPlan {
   if (!stats.hasEnoughData) {
     return {
@@ -96,13 +111,15 @@ export function planSmartQuiz(
       mediumCount: totalQuestions,
       strongCount: 0,
       fallback: true,
+      preset,
     };
   }
 
   const { weak, medium, strong } = stats.bucketed;
+  const dist = PRESET_DISTRIBUTIONS[preset];
 
-  let weakCount = Math.round(totalQuestions * 0.6);
-  let mediumCount = Math.round(totalQuestions * 0.3);
+  let weakCount = Math.round(totalQuestions * dist.weakPct);
+  let mediumCount = Math.round(totalQuestions * dist.mediumPct);
   let strongCount = totalQuestions - weakCount - mediumCount;
 
   if (weak.length === 0) {
@@ -122,7 +139,7 @@ export function planSmartQuiz(
     else weakCount += toRedistribute;
   }
 
-  return { weakCount, mediumCount, strongCount, fallback: false };
+  return { weakCount, mediumCount, strongCount, fallback: false, preset };
 }
 
 export function buildSmartQuizPromptContext(
@@ -130,10 +147,13 @@ export function buildSmartQuizPromptContext(
   plan: SmartQuizPlan
 ): string {
   if (plan.fallback) {
-    return "The student has not completed enough quizzes yet for adaptive targeting. Generate a balanced mix of easy, medium, and hard questions across the material's topics.";
+    return `The student has not completed enough quizzes yet for adaptive targeting. Generate a balanced mix of easy, medium, and hard questions across the material's topics.`;
   }
 
+  const presetLabel = plan.preset === "weak" ? "Focus on weak areas" : plan.preset === "strong" ? "Challenge mode" : "Balanced mix";
+
   const lines: string[] = [];
+  lines.push(`Quiz mode: ${presetLabel}`);
   lines.push("Student performance history (use this to guide question selection):");
 
   if (stats.bucketed.weak.length > 0) {

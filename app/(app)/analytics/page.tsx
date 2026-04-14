@@ -56,6 +56,12 @@ export default async function AnalyticsPage() {
   const rollingData = rollingAccuracy(completedAttempts);
   const { topics, cells } = topicDifficultyMatrix(answersWithQuestions);
 
+  // Confidence calibration stats (only from questions where user rated)
+  const ratedAnswers = answersWithQuestions.filter((a) => a.confidence !== null && a.confidence > 0);
+  const overconfident = ratedAnswers.filter((a) => a.confidence === 3 && !a.is_correct);
+  const underconfident = ratedAnswers.filter((a) => a.confidence === 1 && a.is_correct);
+  const showConfidenceCard = ratedAnswers.length >= 5;
+
   const cachedInsightProp = cachedInsight
     ? {
         content: cachedInsight.content,
@@ -119,6 +125,63 @@ export default async function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confidence Calibration */}
+      {showConfidenceCard && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Confidence Calibration
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Based on {ratedAnswers.length} self-rated answer
+              {ratedAnswers.length !== 1 ? "s" : ""}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold text-destructive">
+                  {overconfident.length}
+                </p>
+                <p className="mt-1 text-xs font-medium text-foreground">
+                  Overconfident
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Confident · Got wrong
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold text-yellow-600 dark:text-yellow-400">
+                  {underconfident.length}
+                </p>
+                <p className="mt-1 text-xs font-medium text-foreground">
+                  Underconfident
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Unsure · Got right
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
+                  {Math.round(
+                    ((ratedAnswers.length - overconfident.length) /
+                      ratedAnswers.length) *
+                      100
+                  )}
+                  %
+                </p>
+                <p className="mt-1 text-xs font-medium text-foreground">
+                  Well Calibrated
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Of rated answers
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Heatmap */}
       <Card>

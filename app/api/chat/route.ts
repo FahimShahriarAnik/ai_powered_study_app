@@ -91,6 +91,18 @@ export async function POST(request: NextRequest) {
 
   const retrievedChunks: MatchedChunk[] = chunks ?? [];
 
+  // Resolve unique material titles for cited sources
+  const uniqueMaterialIds = [...new Set(retrievedChunks.map((c) => c.material_id))];
+  let sourceTitles: string[] = [];
+  if (uniqueMaterialIds.length > 0) {
+    const { data: sourceMaterials } = await supabase
+      .from("materials")
+      .select("id, title")
+      .in("id", uniqueMaterialIds);
+    const titleById = new Map((sourceMaterials ?? []).map((m) => [m.id, m.title]));
+    sourceTitles = uniqueMaterialIds.map((id) => titleById.get(id) ?? "Unknown material");
+  }
+
   // Build context block
   const contextBlock =
     retrievedChunks.length > 0
@@ -121,5 +133,12 @@ ${contextBlock}`;
   });
 
   // Use toTextStreamResponse — matches the proven streaming pattern used by ELI5
-  return result.toTextStreamResponse();
+  // Include cited source titles as a response header (zero token cost)
+  const streamResponse = result.toTextStreamResponse();
+  const headers = new Headers(streamResponse.headers);
+  headers.set("X-Sources", JSON.stringify(sourceTitles));
+  return new Response(streamResponse.body, {
+    status: streamResponse.status,
+    headers,
+  });
 }

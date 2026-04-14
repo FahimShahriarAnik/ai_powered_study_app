@@ -9,11 +9,13 @@ import {
   getUserTopicStats,
   planSmartQuiz,
   buildSmartQuizPromptContext,
+  type SmartQuizPreset,
 } from "@/lib/analytics/user-stats";
 
 const MAX_QUESTIONS = 10;
 const RATE_LIMIT_MS = 60_000;
 const MAX_TEXT_CHARS = 15_000;
+const MAX_TEXT_PER_MATERIAL = 5_000; // per-material cap when combining multiple
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -41,39 +43,58 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { materialId, questionCount = MAX_QUESTIONS } = (await request.json()) as {
-    materialId: string;
+  const {
+    materialId,
+    materialIds: rawMaterialIds,
+    questionCount = MAX_QUESTIONS,
+    preset = "balanced",
+  } = (await request.json()) as {
+    materialId?: string;
+    materialIds?: string[];
     questionCount?: number;
+    preset?: SmartQuizPreset;
   };
 
-  if (!materialId) {
-    return NextResponse.json({ error: "materialId is required" }, { status: 400 });
+  // Support both legacy single materialId and new multi-material materialIds
+  const materialIds: string[] =
+    rawMaterialIds && rawMaterialIds.length > 0
+      ? rawMaterialIds
+      : materialId
+        ? [materialId]
+        : [];
+
+  if (materialIds.length === 0) {
+    return NextResponse.json({ error: "At least one material is required" }, { status: 400 });
   }
 
-  const { data: material } = await supabase
+  const { data: materials } = await supabase
     .from("materials")
     .select("id, title, raw_text, course_id")
-    .eq("id", materialId)
-    .single();
+    .in("id", materialIds);
 
-  if (!material) {
+  if (!materials || materials.length === 0) {
     return NextResponse.json({ error: "Material not found" }, { status: 404 });
   }
+
+  // Use the first material as the primary (for quiz record FK)
+  const primaryMaterial = materials[0];
+  const primaryMaterialId = primaryMaterial.id;
 
   const { data: course } = await supabase
     .from("courses")
     .select("id")
-    .eq("id", material.course_id)
+    .eq("id", primaryMaterial.course_id)
     .single();
 
   if (!course) {
     return NextResponse.json({ error: "Material not found" }, { status: 404 });
   }
 
+  // Rate limit: check primary material's most recent quiz
   const { data: recentQuiz } = await supabase
     .from("quizzes")
     .select("created_at")
-    .eq("material_id", materialId)
+    .eq("material_id", primaryMaterialId)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
@@ -90,14 +111,27 @@ export async function POST(request: NextRequest) {
   }
 
   const count = Math.min(Math.max(1, questionCount), MAX_QUESTIONS);
-  const rawText = material.raw_text.slice(0, MAX_TEXT_CHARS);
+  const validPreset: SmartQuizPreset =
+    preset === "weak" || preset === "balanced" || preset === "strong" ? preset : "balanced";
+
+  // Combine text from all materials with per-material cap
+  const charPerMaterial = Math.max(
+    Math.floor(MAX_TEXT_CHARS / materials.length),
+    MAX_TEXT_PER_MATERIAL
+  );
+  const rawText = materials
+    .map(
+      (m, i) =>
+        `--- Material ${i + 1}: ${m.title} ---\n${m.raw_text.slice(0, charPerMaterial)}`
+    )
+    .join("\n\n");
 
   const stats = await getUserTopicStats(supabase, user.id);
-  const plan = planSmartQuiz(stats, count);
+  const plan = planSmartQuiz(stats, count, validPreset);
   const context = buildSmartQuizPromptContext(stats, plan);
 
   console.log(
-    `[generate-smart-quiz] material="${material.title}" user=${user.id} fallback=${plan.fallback} weak/med/strong=${plan.weakCount}/${plan.mediumCount}/${plan.strongCount}`
+    `[generate-smart-quiz] materials="${materials.map((m) => m.title).join(", ")}" preset=${validPreset} user=${user.id} fallback=${plan.fallback} weak/med/strong=${plan.weakCount}/${plan.mediumCount}/${plan.strongCount}`
   );
   const t0 = Date.now();
 
@@ -136,14 +170,15 @@ ${rawText}`,
   );
   const { questions } = result.object;
 
-  const quizTitle = plan.fallback
-    ? `Smart Quiz — ${material.title}`
-    : `Smart Quiz — ${material.title}`;
+  const quizTitle =
+    materials.length > 1
+      ? `Smart Quiz — ${materials.map((m) => m.title).join(", ")}`
+      : `Smart Quiz — ${primaryMaterial.title}`;
 
   const { data: quiz, error: quizError } = await supabase
     .from("quizzes")
     .insert({
-      material_id: materialId,
+      material_id: primaryMaterialId,
       title: quizTitle,
       difficulty: "adaptive",
       question_count: questions.length,
@@ -178,7 +213,7 @@ ${rawText}`,
 
   return NextResponse.json({
     quizId: quiz.id,
-    courseId: material.course_id,
+    courseId: primaryMaterial.course_id,
     plan,
     fallback: plan.fallback,
   });

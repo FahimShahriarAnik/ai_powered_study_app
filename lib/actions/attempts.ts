@@ -19,7 +19,7 @@ export async function updateAttemptNotes(attemptId: string, notes: string) {
 
 export async function submitQuizAttempt(
   attemptId: string,
-  answers: Array<{ questionId: string; selectedIndex: number }>,
+  answers: Array<{ questionId: string; selectedIndex: number; confidence?: number | null }>,
   notes: string
 ) {
   const supabase = await createClient();
@@ -48,15 +48,18 @@ export async function submitQuizAttempt(
   let score = 0;
   const records = answers
     .filter((a) => correctMap.has(a.questionId))
-    .map(({ questionId, selectedIndex }) => {
+    .map(({ questionId, selectedIndex, confidence }) => {
       const correctIdx = correctMap.get(questionId)!;
       const isCorrect = correctIdx === selectedIndex;
       if (isCorrect) score += 1;
+      // confidence: store null if not rated or deselected (value 0)
+      const confidenceVal = confidence && confidence > 0 ? confidence : null;
       return {
         attempt_id: attemptId,
         question_id: questionId,
         selected_index: selectedIndex,
         is_correct: isCorrect,
+        confidence: confidenceVal,
       };
     });
 

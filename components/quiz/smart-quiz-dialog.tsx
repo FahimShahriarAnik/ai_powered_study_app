@@ -21,6 +21,14 @@ type MaterialOption = {
   course_name: string;
 };
 
+type Preset = "weak" | "balanced" | "strong";
+
+const PRESETS: { value: Preset; label: string; description: string }[] = [
+  { value: "weak", label: "Focus Weak", description: "60% weak · 30% medium · 10% strong" },
+  { value: "balanced", label: "Balanced", description: "40% weak · 40% medium · 20% strong" },
+  { value: "strong", label: "Challenge", description: "10% weak · 30% medium · 60% strong" },
+];
+
 interface Props {
   triggerLabel?: string;
   triggerClassName?: string;
@@ -40,7 +48,8 @@ export function SmartQuizDialog({
   const [open, setOpen] = useState(false);
   const [materials, setMaterials] = useState<MaterialOption[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [preset, setPreset] = useState<Preset>("balanced");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,13 +70,8 @@ export function SmartQuizDialog({
 
       if (cancelled) return;
 
-      if (materialsRes.error) {
-        setError(materialsRes.error.message);
-        setLoadingMaterials(false);
-        return;
-      }
-      if (coursesRes.error) {
-        setError(coursesRes.error.message);
+      if (materialsRes.error || coursesRes.error) {
+        setError(materialsRes.error?.message ?? coursesRes.error?.message ?? "Failed to load");
         setLoadingMaterials(false);
         return;
       }
@@ -84,23 +88,51 @@ export function SmartQuizDialog({
       }));
 
       setMaterials(opts);
-      if (opts.length > 0 && !selectedId) setSelectedId(opts[0].id);
+      // Pre-select first material by default
+      if (opts.length > 0 && selectedIds.size === 0) {
+        setSelectedIds(new Set([opts[0].id]));
+      }
       setLoadingMaterials(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, selectedId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  function toggleMaterial(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        if (next.size === 1) return prev; // keep at least one selected
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  // Group materials by course for display
+  const byCourse = materials.reduce<Record<string, MaterialOption[]>>((acc, m) => {
+    if (!acc[m.course_name]) acc[m.course_name] = [];
+    acc[m.course_name].push(m);
+    return acc;
+  }, {});
 
   async function handleGenerate() {
-    if (!selectedId) return;
+    if (selectedIds.size === 0) return;
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch("/api/generate-smart-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ materialId: selectedId, questionCount: 10 }),
+        body: JSON.stringify({
+          materialIds: Array.from(selectedIds),
+          questionCount: 10,
+          preset,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -137,34 +169,89 @@ export function SmartQuizDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground">
-          Adaptive: 60% weak topics · 30% medium · 10% strong (harder
-          difficulty). Falls back to a balanced quiz if you haven&rsquo;t done
-          enough yet.
-        </p>
+        {/* Preset selector */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Quiz mode</p>
+          <div className="grid grid-cols-3 gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPreset(p.value)}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-colors",
+                  preset === p.value
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                )}
+              >
+                <span className="text-xs font-medium">{p.label}</span>
+                <span className="text-[10px] leading-tight text-muted-foreground">
+                  {p.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <div className="mt-1 space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Material
-          </label>
+        {/* Material multi-select */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Materials{" "}
+            <span className="font-normal text-muted-foreground/60">
+              ({selectedIds.size} selected)
+            </span>
+          </p>
+
           {loadingMaterials ? (
-            <div className="h-9 rounded-md border border-border bg-muted/30 animate-pulse" />
+            <div className="space-y-1.5">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-8 rounded-md border border-border bg-muted/30 animate-pulse"
+                />
+              ))}
+            </div>
           ) : materials.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No materials yet. Upload a material to a course first.
             </p>
           ) : (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.course_name} — {m.title}
-                </option>
+            <div className="max-h-52 overflow-y-auto rounded-md border border-border">
+              {Object.entries(byCourse).map(([courseName, mats]) => (
+                <div key={courseName}>
+                  <p className="sticky top-0 bg-muted/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
+                    {courseName}
+                  </p>
+                  {mats.map((m) => {
+                    const checked = selectedIds.has(m.id);
+                    return (
+                      <label
+                        key={m.id}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-muted/40",
+                          checked && "bg-primary/5"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleMaterial(m.id)}
+                          className="h-3.5 w-3.5 accent-primary"
+                        />
+                        <span
+                          className={cn(
+                            "flex-1 truncate leading-tight",
+                            checked ? "text-foreground" : "text-muted-foreground"
+                          )}
+                        >
+                          {m.title}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               ))}
-            </select>
+            </div>
           )}
         </div>
 
@@ -176,9 +263,7 @@ export function SmartQuizDialog({
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={
-              submitting || loadingMaterials || !selectedId || materials.length === 0
-            }
+            disabled={submitting || loadingMaterials || selectedIds.size === 0}
             className="gap-1.5"
           >
             <Sparkles className="h-3.5 w-3.5" />
