@@ -210,6 +210,102 @@ export interface Database {
         };
         Relationships: [];
       };
+      quiz_rooms: {
+        Row: {
+          id: string;
+          code: string;
+          quiz_id: string;
+          host_user_id: string;
+          status: "waiting" | "active" | "finished";
+          current_question: number;
+          question_started_at: string | null;
+          question_duration_seconds: number;
+          revealed_answers: Record<string, number>; // { "0": 2, "1": 3 ... } question_index → correct_index
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          quiz_id: string;
+          host_user_id: string;
+          status?: "waiting" | "active" | "finished";
+          current_question?: number;
+          question_started_at?: string | null;
+          question_duration_seconds?: number;
+          revealed_answers?: Record<string, number>;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          quiz_id?: string;
+          host_user_id?: string;
+          status?: "waiting" | "active" | "finished";
+          current_question?: number;
+          question_started_at?: string | null;
+          question_duration_seconds?: number;
+          revealed_answers?: Record<string, number>;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      room_participants: {
+        Row: {
+          id: string;
+          room_id: string;
+          user_id: string;
+          display_name: string;
+          score: number;
+          joined_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          user_id: string;
+          display_name: string;
+          score?: number;
+          joined_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string;
+          user_id?: string;
+          display_name?: string;
+          score?: number;
+          joined_at?: string;
+        };
+        Relationships: [];
+      };
+      room_answers: {
+        Row: {
+          id: string;
+          room_id: string;
+          participant_id: string;
+          question_index: number;
+          selected_index: number;
+          is_correct: boolean;
+          answered_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          participant_id: string;
+          question_index: number;
+          selected_index: number;
+          is_correct: boolean;
+          answered_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string;
+          participant_id?: string;
+          question_index?: number;
+          selected_index?: number;
+          is_correct?: boolean;
+          answered_at?: string;
+        };
+        Relationships: [];
+      };
       ai_insights: {
         Row: {
           id: string;
@@ -274,3 +370,10 @@ export type MaterialChunk = Database["public"]["Tables"]["material_chunks"]["Row
 
 export type AiInsight = Database["public"]["Tables"]["ai_insights"]["Row"];
 export type AiInsightContent = AiInsight["content"];
+
+export type QuizRoom = Database["public"]["Tables"]["quiz_rooms"]["Row"];
+export type RoomParticipant = Database["public"]["Tables"]["room_participants"]["Row"];
+export type RoomAnswer = Database["public"]["Tables"]["room_answers"]["Row"];
+
+// Question with correct_index stripped — safe to send to client during active game
+export type SanitizedQuestion = Omit<Question, "correct_index">;

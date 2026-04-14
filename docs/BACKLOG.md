@@ -87,6 +87,39 @@ _(populated as phases progress)_
 
 ---
 
+---
+
+## Phase 9 — Quiz Rooms: Known TODOs / Polish items (defer to Phase 10)
+
+- [ ] **Reconnect / rejoin on page refresh mid-game** — Room state is rehydrated from DB on refresh (server page re-fetches), but per-question answer state (`myAnswerIndex`) is lost. Could persist to `localStorage` keyed by `roomId + questionIndex`.
+- [ ] **> 2 players** — Schema and RLS allow it; the join endpoint caps at 2. Could lift to 4 for team mode with minor changes.
+- [ ] **Guest-as-host disconnect** — If host closes tab, guest is stuck (no "transfer host" logic). Acceptable for a 2-window demo.
+- [ ] **Room expiry / cleanup** — Finished/stale rooms accumulate in `quiz_rooms`. A Postgres cron job (pg_cron) or Supabase Edge Function could delete rooms older than 24h.
+- [ ] **Opponent disconnect detection** — Supabase Realtime presence could show when opponent goes offline. Currently no indication.
+- [ ] **Room history** — No page listing past rooms. Could surface from `quiz_rooms WHERE status = 'finished'` joined to `room_participants`.
+- [ ] **Sound / haptic feedback on correct answer** — Small polish win for live demo.
+- [ ] **Realtime enable reminder** — User must enable Realtime for `quiz_rooms`, `room_participants`, `room_answers` tables in Supabase Dashboard → Database → Replication before the game works live.
+
+---
+
+## Phase 9 — Autonomous Decisions Log
+
+| Decision | Rationale |
+|---|---|
+| **`revealed_answers` JSONB in `quiz_rooms`** | Both clients need the correct answer after question closes. Storing it in the room row means a single Realtime `UPDATE` delivers the reveal to all clients simultaneously — no extra broadcast or table needed. |
+| **Host is the advance authority** | Host's client calls `/next` when timer hits 0 OR all players answered. Prevents split-brain (two clients racing to advance). Guest's UI auto-receives the new state via Realtime. |
+| **Auto-advance with 1.8s delay after all answered** | Gives both players a moment to see the "answered" state before the question flips. Short enough to feel snappy. |
+| **`correct_index` stripped server-side in page.tsx and API** | Questions are fetched with all columns server-side, then re-mapped to `SanitizedQuestion` (omitting `correct_index`) before passing to the client component. The only path for `correct_index` to reach the client is via `revealed_answers` in the room update, which only happens after the question closes. |
+| **`unique(room_id, participant_id, question_index)` on `room_answers`** | Prevents double-answering. The answer endpoint treats `23505` (unique violation) as "already answered" and returns 409 — idempotent and safe. |
+| **Idempotent `/next` via `fromQuestion` check** | If host's auto-advance fires twice (timer + all-answered race), the second call sees `room.current_question !== fromQuestion` and returns early. Prevents skipping two questions. |
+| **2-player cap in join endpoint** | Competitive 1v1 is the demo story. Cap keeps scoring simple (no tie-break logic). Easy to lift to 4 later. |
+| **6-char uppercase room code (no 0/O/1/I)** | Unambiguous for verbal sharing ("B as in bravo"). 34^6 ≈ 1.5B combinations — effectively uncollide-able for a demo. |
+| **Scores updated immediately on answer (not on reveal)** | Simpler than batching score updates at reveal time. Score is correct_index comparison done server-side — client never sees the correct answer until reveal. |
+| **RLS: any authenticated user can SELECT `quiz_rooms` and `room_participants`** | Needed so guests can look up a room by code before they become participants. Room codes are hard to guess; data exposure (quiz_id, display names) is acceptable for a demo. |
+| **No persistent room history or attempt linkage to `quiz_attempts`** | Room scores live in `room_participants.score`. Linking to the solo `quiz_attempts` flow would require a new attempt per player per room, adding complexity. Deferred to Phase 10 polish. |
+
+---
+
 ## Phase 8 — Autonomous Decisions Log
 
 | Decision | Rationale |

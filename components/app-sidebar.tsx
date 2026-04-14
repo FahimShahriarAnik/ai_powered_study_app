@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { Course } from "@/types/database";
 import { cn } from "@/lib/utils";
-import { BarChart3, BookOpen, LayoutDashboard, Plus } from "lucide-react";
+import { BarChart3, BookOpen, LayoutDashboard, Plus, Swords } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -50,6 +50,18 @@ export function AppSidebar({ courses }: Props) {
           >
             <BarChart3 className="h-4 w-4 shrink-0" />
             Analytics
+          </Link>
+          <Link
+            href="/rooms"
+            className={cn(
+              buttonVariants({
+                variant: pathname === "/rooms" || pathname.startsWith("/rooms/") ? "secondary" : "ghost",
+              }),
+              "w-full justify-start gap-2 text-sm"
+            )}
+          >
+            <Swords className="h-4 w-4 shrink-0" />
+            Quiz Rooms
           </Link>
         </nav>
 

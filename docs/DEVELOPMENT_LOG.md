@@ -307,3 +307,91 @@ Entry format:
 - **Verification:** `npm run build` clean (TypeScript strict, Turbopack). All 15 pages/routes compile. New routes `/api/chat` and `/api/embed-course` appear in the build manifest.
 - **Branch:** `phase-8-rag-study-coach`
 - **Commit:** `feat(phase-8): rag ai study coach`
+
+---
+
+## [2026-04-13] — Phase 9: Collaborative / Competitive Quiz Rooms
+
+- **What was built:** Real-time 1v1 competitive quiz rooms using Supabase Realtime (`postgres_changes`). Host creates a room by picking a quiz → gets a 6-char code. Guest joins by code. Both see a waiting room with presence. Host starts the game → both get the same question simultaneously with a 30s countdown. Each player answers independently; server checks correctness and updates score. After both answer (or timer expires), host auto-advances — the correct answer is revealed to both clients via a Realtime DB update (`revealed_answers` JSONB). Final score screen with win/loss. "Quiz Rooms" link added to sidebar.
+- **Files created:**
+  - `app/api/rooms/route.ts` — POST create room (generate code, insert room + host participant)
+  - `app/api/rooms/join/route.ts` — POST join by code (find room, insert guest participant)
+  - `app/api/rooms/[roomId]/route.ts` — GET room state (sanitized questions, participants, current answers)
+  - `app/api/rooms/[roomId]/start/route.ts` — POST start game (host only)
+  - `app/api/rooms/[roomId]/answer/route.ts` — POST submit answer (server checks correctness, updates score)
+  - `app/api/rooms/[roomId]/next/route.ts` — POST advance question (reveals correct answer via `revealed_answers`, host only, idempotent)
+  - `app/(app)/rooms/page.tsx` — server page, loads user's quizzes for the picker
+  - `app/(app)/rooms/rooms-hub.tsx` — client UI: quiz picker (create) + code input (join)
+  - `app/(app)/rooms/[roomId]/page.tsx` — server page, rehydrates initial game state
+  - `app/(app)/rooms/[roomId]/room-client.tsx` — full game client: waiting room, live question, timer, reveal, final scores; Realtime subscriptions on `quiz_rooms`, `room_participants`, `room_answers`
+- **Files modified:**
+  - `types/database.ts` — added `quiz_rooms`, `room_participants`, `room_answers` table types + `QuizRoom`, `RoomParticipant`, `RoomAnswer`, `SanitizedQuestion` exports
+  - `components/app-sidebar.tsx` — added "Quiz Rooms" nav link with `Swords` icon
+  - `docs/BACKLOG.md` — Phase 9 decisions log + known TODOs
+  - `docs/DEVELOPMENT_PLAN.md` — Phase 9 marked done, folder structure updated
+- **DB migration required (run in Supabase SQL editor before testing):**
+  ```sql
+  -- Quiz Rooms
+  create table quiz_rooms (
+    id uuid primary key default gen_random_uuid(),
+    code varchar(6) unique not null,
+    quiz_id uuid not null references quizzes(id) on delete cascade,
+    host_user_id uuid not null references auth.users(id) on delete cascade,
+    status text not null default 'waiting' check (status in ('waiting', 'active', 'finished')),
+    current_question int not null default 0,
+    question_started_at timestamptz,
+    question_duration_seconds int not null default 30,
+    revealed_answers jsonb not null default '{}',
+    created_at timestamptz default now()
+  );
+  alter table quiz_rooms enable row level security;
+  create policy "rooms_select_auth" on quiz_rooms for select using (auth.uid() is not null);
+  create policy "rooms_insert_own" on quiz_rooms for insert with check (auth.uid() = host_user_id);
+  create policy "rooms_update_host" on quiz_rooms for update using (auth.uid() = host_user_id);
+
+  -- Room Participants
+  create table room_participants (
+    id uuid primary key default gen_random_uuid(),
+    room_id uuid not null references quiz_rooms(id) on delete cascade,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    display_name text not null,
+    score int not null default 0,
+    joined_at timestamptz default now(),
+    unique(room_id, user_id)
+  );
+  alter table room_participants enable row level security;
+  create policy "participants_select_auth" on room_participants for select using (auth.uid() is not null);
+  create policy "participants_insert_own" on room_participants for insert with check (auth.uid() = user_id);
+  create policy "participants_update_own" on room_participants for update using (auth.uid() = user_id);
+
+  -- Room Answers
+  create table room_answers (
+    id uuid primary key default gen_random_uuid(),
+    room_id uuid not null references quiz_rooms(id) on delete cascade,
+    participant_id uuid not null references room_participants(id) on delete cascade,
+    question_index int not null,
+    selected_index int not null,
+    is_correct boolean not null,
+    answered_at timestamptz default now(),
+    unique(room_id, participant_id, question_index)
+  );
+  alter table room_answers enable row level security;
+  create policy "room_answers_select_auth" on room_answers for select using (auth.uid() is not null);
+  create policy "room_answers_insert_own" on room_answers for insert with check (
+    participant_id in (select id from room_participants where user_id = auth.uid())
+  );
+
+  -- IMPORTANT: Enable Realtime for these tables in Supabase Dashboard → Database → Replication:
+  -- quiz_rooms, room_participants, room_answers
+  ```
+- **Autonomous decisions (see `docs/BACKLOG.md` Phase 9 section for full table):**
+  - **`revealed_answers` JSONB in `quiz_rooms`** — delivers correct-answer reveal to both clients via a single Realtime DB UPDATE; no extra broadcast or table needed.
+  - **Host is advance authority** — host's client calls `/next` on timeout or all-answered; idempotent `fromQuestion` check prevents double-advance.
+  - **`correct_index` never sent to client during active game** — stripped server-side; only reaches client via `revealed_answers` after question closes.
+  - **`unique` constraint on `room_answers(room_id, participant_id, question_index)`** — prevents double-answering; second insert returns `23505` → 409.
+  - **RLS: `auth.uid() is not null` SELECT on `quiz_rooms` and `room_participants`** — guests need to look up a room by code before joining; code is hard to guess; acceptable exposure for demo.
+  - **Auto-advance delay: 1.8s after all answered** — brief reveal window so both players see "answered" state before question flips.
+- **Known issues / TODOs:** See `docs/BACKLOG.md` Phase 9 section (disconnect detection, reconnect on refresh, room expiry, Realtime enable reminder).
+- **Verification:** `npm run build` clean — 23 routes, TypeScript strict, Turbopack.
+- **Branch:** `phase-9-realtime-quiz-rooms`
+- **Commit:** `feat(phase-9): realtime competitive quiz rooms`

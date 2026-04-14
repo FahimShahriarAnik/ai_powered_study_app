@@ -15,7 +15,8 @@
 | 6 — Analytics | Done | (phase-6-analytics branch) |
 | 7 — Adaptive Smart Quiz | Done | (phase-7-adaptive-quiz branch) |
 | 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
-| 9–10 | Pending | — |
+| 9 — Collaborative Quiz Rooms | Done | (phase-9-realtime-quiz-rooms branch) |
+| 10 — Polish & Demo Prep | Pending | — |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
@@ -70,6 +71,12 @@
 │   │   └── sticky-notes-panel.tsx             # Phase 5
 │   ├── chat/
 │   │   └── course-chat-sheet.tsx              # Phase 8 — RAG chat UI
+│   ├── rooms/
+│   │   ├── page.tsx                           # Phase 9 — create/join hub (server)
+│   │   ├── rooms-hub.tsx                      # Phase 9 — create/join client UI
+│   │   └── [roomId]/
+│   │       ├── page.tsx                       # Phase 9 — room server page
+│   │       └── room-client.tsx                # Phase 9 — live game UI (Realtime)
 │   ├── app-sidebar.tsx
 │   ├── top-nav.tsx
 │   ├── theme-provider.tsx
@@ -199,7 +206,7 @@ lib/supabase/middleware.ts                      # if server auth middleware need
 - Scoped per course (chat knows only that course's materials).
 - **Commit:** `feat: rag study coach`
 
-## Phase 9 — Collaborative / Competitive Quiz Rooms (Going Beyond, optional)
+## Phase 9 — Collaborative / Competitive Quiz Rooms (Going Beyond, optional)  [DONE — phase-9-realtime-quiz-rooms branch]
 
 > **Riskiest phase. Build LAST. Have a fallback.**
 
