@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { Course } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
 import { Menu } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "./app-sidebar";
 
@@ -50,9 +51,12 @@ export function TopNav({ user, courses }: { user: User | null; courses: Course[]
           </SheetContent>
         </Sheet>
 
-        <span className="font-semibold tracking-tight text-foreground">
+        <Link
+          href="/"
+          className="cursor-pointer font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity md:hidden"
+        >
           Cortex
-        </span>
+        </Link>
       </div>
 
       <div className="flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 > Phases are sequential. Do NOT start a phase until the previous one is committed and confirmed working.
 
-## Current Status (as of 2026-04-13)
+## Current Status (as of 2026-04-14)
 
 | Phase | Status | Commit |
 |---|---|---|
@@ -16,13 +16,16 @@
 | 7 — Adaptive Smart Quiz | Done | (phase-7-adaptive-quiz branch) |
 | 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
 | 9 — Collaborative Quiz Rooms | Done | (phase-9-realtime-quiz-rooms branch) |
-| 10 — Polish & Demo Prep | Pending | — |
+| Pre-10 Polish | Done | `3de8355`, `b096666` |
+| 10 — Polish & Demo Prep | In Progress | — |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
 - **Phase 4:** model in use is `gemini-3-flash-preview` via `@ai-sdk/google`, not Gemini 2.0 Flash. Prompt is inlined in `app/api/generate-quiz/route.ts` — `lib/ai/prompts.ts` and `lib/ai/gemini.ts` were never created (unnecessary indirection at this scale).
 - Route grouping uses `app/(app)/` and `app/(auth)/` segment groups — differs from the flat tree originally sketched below but functionally equivalent.
-- Dashboard stats card shows hardcoded `0` for Materials and Quizzes — **wired in Phase 6**.
+- Dashboard course cards showed hardcoded `0 materials · 0 quizzes` — **fixed pre-Phase 10** (`b096666`).
+- PDF upload refactored to two-phase (client→storage + server parse) with `maxDuration = 60` — **fixed pre-Phase 10** (`3de8355`).
+- Landing page fully redesigned with hero, feature grid, how-it-works, auth-aware CTAs — **fixed pre-Phase 10** (`b096666`).
 
 ## Folder Structure (actual, as of Phase 7)
 

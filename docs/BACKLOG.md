@@ -4,6 +4,20 @@ Deferred features and known TODOs across phases.
 
 ---
 
+## Pre-Phase-10 Polish (completed fixes)
+
+- [x] **PDF upload — Vercel 10s timeout** — Added `maxDuration = 60` to `parse-pdf` route. (`3de8355`)
+- [x] **PDF upload — slow file transfer through Vercel** — Refactored to two-phase: client uploads directly to Supabase Storage, API route reads from storage and parses. (`3de8355`)
+- [x] **PDF upload — cancel state bug** — `cancelledRef` + `handleClose` abort in-flight requests and fire-and-forget cleanup of orphaned storage files; re-opening modal always shows blank form. (`3de8355`)
+- [x] **PDF upload — no progress feedback** — Two-phase progress indicator: "Step 1 of 2 · Sending to storage" → "Step 2 of 2 · Reading PDF content". (`3de8355`)
+- [x] **PDF upload — UI** — Smaller tab triggers, inline field validation (title / file errors shown under each field), file type enforcement, tinted error banners. (`3de8355`)
+- [x] **Landing page — too minimal** — Full redesign: sticky nav with anchor links, hero with stat strip, 6-feature grid, how-it-works steps, CTA banner, footer. (`b096666`)
+- [x] **Landing page — CTA unaware of auth state** — "Get started free" → "Go to Dashboard" when logged in (server-side check, no flash). (`b096666`)
+- [x] **Nav — "Cortex" not clickable** — Sidebar and top-nav "Cortex" titles are now `<Link href="/">` with `cursor-pointer`. (`b096666`)
+- [x] **Nav — duplicate "Cortex" title on desktop** — Top-nav title hidden on `md+` (`md:hidden`); sidebar title is the single source on desktop. (`b096666`)
+
+---
+
 ## Auth
 
 - [ ] **Google OAuth** — Enable in Supabase: Authentication → Providers → Google. Needs Google Cloud OAuth client ID + secret. Skipped in Phase 2 to unblock core auth.
@@ -27,7 +41,7 @@ _(populated as phases progress)_
 
 ## Dashboard — Known TODOs
 
-- [ ] **Course card material/quiz counts** — The per-course card in the dashboard grid shows hardcoded "0 materials · 0 quizzes". Needs a join on `materials` and `quizzes` per course_id. Defer to Phase 10 polish.
+- [x] **Course card material/quiz counts** — Fixed. Fetches `materials (id, course_id)` and `quizzes (material_id)` in parallel; resolves quiz counts via `material_id → course_id` map. Real counts with pluralisation. (`b096666`)
 
 ---
 

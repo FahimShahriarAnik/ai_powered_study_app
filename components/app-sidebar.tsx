@@ -20,9 +20,12 @@ export function AppSidebar({ courses }: Props) {
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="hidden h-14 items-center border-b border-border px-4 md:flex">
-        <span className="font-semibold tracking-tight text-foreground">
+        <Link
+          href="/"
+          className="cursor-pointer font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity"
+        >
           Cortex
-        </span>
+        </Link>
       </div>
 
       <ScrollArea className="flex-1 px-3 py-3">

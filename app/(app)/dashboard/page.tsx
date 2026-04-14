@@ -28,15 +28,16 @@ export default async function DashboardPage({
   const courseList: Course[] = courses ?? [];
   const showNewDialog = params.new === "1";
 
-  // Wire up real counts
   const courseIds = courseList.map((c) => c.id);
-  const [materialsResult, attemptsResult] = await Promise.all([
+
+  // Fetch per-course material counts and quiz counts (quizzes link via material_id)
+  const [materialsRows, quizzesRows, attemptsResult] = await Promise.all([
     courseIds.length > 0
-      ? supabase
-          .from("materials")
-          .select("id", { count: "exact", head: true })
-          .in("course_id", courseIds)
-      : Promise.resolve({ count: 0 }),
+      ? supabase.from("materials").select("id, course_id").in("course_id", courseIds)
+      : Promise.resolve({ data: [] as { id: string; course_id: string }[] }),
+    courseIds.length > 0
+      ? supabase.from("quizzes").select("material_id")
+      : Promise.resolve({ data: [] as { material_id: string }[] }),
     user
       ? supabase
           .from("quiz_attempts")
@@ -45,7 +46,25 @@ export default async function DashboardPage({
           .not("completed_at", "is", null)
       : Promise.resolve({ count: 0 }),
   ]);
-  const materialsCount = materialsResult.count ?? 0;
+
+  // material_id → course_id lookup
+  const materialToCourse = new Map<string, string>();
+  const materialsPerCourse = new Map<string, number>();
+  for (const row of materialsRows.data ?? []) {
+    materialToCourse.set(row.id, row.course_id);
+    materialsPerCourse.set(row.course_id, (materialsPerCourse.get(row.course_id) ?? 0) + 1);
+  }
+
+  // Count quizzes per course via material_id → course_id
+  const quizzesPerCourse = new Map<string, number>();
+  for (const row of quizzesRows.data ?? []) {
+    const courseId = materialToCourse.get(row.material_id);
+    if (courseId) {
+      quizzesPerCourse.set(courseId, (quizzesPerCourse.get(courseId) ?? 0) + 1);
+    }
+  }
+
+  const materialsCount = (materialsRows.data ?? []).length;
   const quizzesTakenCount = attemptsResult.count ?? 0;
 
   return (
@@ -107,10 +126,12 @@ export default async function DashboardPage({
                 <CardContent>
                   <div className="flex gap-3 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <FileText className="h-3.5 w-3.5" />0 materials
+                      <FileText className="h-3.5 w-3.5" />
+                      {materialsPerCourse.get(course.id) ?? 0} material{(materialsPerCourse.get(course.id) ?? 0) !== 1 ? "s" : ""}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Zap className="h-3.5 w-3.5" />0 quizzes
+                      <Zap className="h-3.5 w-3.5" />
+                      {quizzesPerCourse.get(course.id) ?? 0} quiz{(quizzesPerCourse.get(course.id) ?? 0) !== 1 ? "zes" : ""}
                     </span>
                   </div>
                 </CardContent>
