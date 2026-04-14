@@ -19,14 +19,6 @@ export function AppSidebar({ courses }: Props) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="hidden h-14 items-center border-b border-border px-4 md:flex">
-        <Link
-          href="/"
-          className="cursor-pointer font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity"
-        >
-          Cortex
-        </Link>
-      </div>
 
       <ScrollArea className="flex-1 px-3 py-3">
         <nav className="mb-4 space-y-1">
@@ -39,7 +31,7 @@ export function AppSidebar({ courses }: Props) {
               "w-full justify-start gap-2 text-sm"
             )}
           >
-            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            <LayoutDashboard className="h-5 w-5 shrink-0" />
             Dashboard
           </Link>
           <Link
@@ -51,7 +43,7 @@ export function AppSidebar({ courses }: Props) {
               "w-full justify-start gap-2 text-sm"
             )}
           >
-            <BarChart3 className="h-4 w-4 shrink-0" />
+            <BarChart3 className="h-5 w-5 shrink-0" />
             Analytics
           </Link>
           <Link
@@ -63,7 +55,7 @@ export function AppSidebar({ courses }: Props) {
               "w-full justify-start gap-2 text-sm"
             )}
           >
-            <Swords className="h-4 w-4 shrink-0" />
+            <Swords className="h-5 w-5 shrink-0" />
             Quiz Rooms
           </Link>
         </nav>

@@ -11,10 +11,13 @@ Deferred features and known TODOs across phases.
 - [x] **PDF upload — cancel state bug** — `cancelledRef` + `handleClose` abort in-flight requests and fire-and-forget cleanup of orphaned storage files; re-opening modal always shows blank form. (`3de8355`)
 - [x] **PDF upload — no progress feedback** — Two-phase progress indicator: "Step 1 of 2 · Sending to storage" → "Step 2 of 2 · Reading PDF content". (`3de8355`)
 - [x] **PDF upload — UI** — Smaller tab triggers, inline field validation (title / file errors shown under each field), file type enforcement, tinted error banners. (`3de8355`)
-- [x] **Landing page — too minimal** — Full redesign: sticky nav with anchor links, hero with stat strip, 6-feature grid, how-it-works steps, CTA banner, footer. (`b096666`)
-- [x] **Landing page — CTA unaware of auth state** — "Get started free" → "Go to Dashboard" when logged in (server-side check, no flash). (`b096666`)
-- [x] **Nav — "Cortex" not clickable** — Sidebar and top-nav "Cortex" titles are now `<Link href="/">` with `cursor-pointer`. (`b096666`)
-- [x] **Nav — duplicate "Cortex" title on desktop** — Top-nav title hidden on `md+` (`md:hidden`); sidebar title is the single source on desktop. (`b096666`)
+- [x] **Landing page — too minimal** — Full redesign: sticky nav with anchor links, hero with stat strip, 6-feature grid, how-it-works steps, CTA banner, footer. (`b66e87f`)
+- [x] **Landing page — CTA unaware of auth state** — "Get started free" → "Go to Dashboard" when logged in (server-side check, no flash). (`b66e87f`)
+- [x] **Nav — "Cortex" not clickable** — Sidebar and top-nav "Cortex" titles are now `<Link href="/">` with `cursor-pointer`. (`b66e87f`)
+- [x] **Nav — duplicate "Cortex" title on desktop** — Removed sidebar "Cortex" title; top-nav title is the single source across all viewports. (`b66e87f`)
+- [x] **Reader / accessible theme** — New `.reader` CSS class: warm sepia background, deep forest green primary, amber accent. Replaces system theme in the toggle cycle (light → dark → reader). (`6b67281`)
+- [x] **Cursor not pointer on interactive elements** — Global CSS rule covers `button`, `a`, `[role=button]`, `label[for]`, `select`, `summary`, `[tabindex]`; disabled elements get `not-allowed`. (`6b67281`)
+- [x] **Icons too small** — Sidebar nav icons and theme toggle bumped from `h-4` to `h-5`; mobile hamburger from `h-5` to `h-6`. (`6b67281`)
 
 ---
 

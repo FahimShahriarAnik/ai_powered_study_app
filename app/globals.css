@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant reader (&:is(.reader *));
 
 :root {
   --radius: 0.625rem;
@@ -48,6 +49,30 @@
   --ring: oklch(0.556 0 0);
 }
 
+/* ── Reader / Accessible theme — warm sepia + earthy multi-colour palette ── */
+/*    Designed for long reading sessions: reduced glare, warm tones, good contrast */
+.reader {
+  --background: oklch(0.84 0.052 83);           /* warm sepia tan — noticeably off-white */
+  --foreground: oklch(0.18 0.05 60);            /* deep warm brown — high contrast ink */
+  --card: oklch(0.88 0.044 82);                 /* elevated card surface, lighter than bg */
+  --card-foreground: oklch(0.18 0.05 60);
+  --popover: oklch(0.88 0.044 82);
+  --popover-foreground: oklch(0.18 0.05 60);
+  --primary: oklch(0.36 0.12 155);              /* deep forest green */
+  --primary-foreground: oklch(0.96 0.015 85);
+  --secondary: oklch(0.79 0.042 83);            /* warm sand */
+  --secondary-foreground: oklch(0.20 0.05 60);
+  --muted: oklch(0.79 0.040 80);
+  --muted-foreground: oklch(0.42 0.07 64);      /* warm mid-brown — readable subtext */
+  --accent: oklch(0.77 0.058 74);               /* amber — warm highlight */
+  --accent-foreground: oklch(0.18 0.05 60);
+  --destructive: oklch(0.55 0.22 28);
+  --destructive-foreground: oklch(0.97 0 0);
+  --border: oklch(0.74 0.042 78);               /* visible warm border */
+  --input: oklch(0.81 0.042 80);
+  --ring: oklch(0.36 0.12 155);                 /* matches primary */
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -83,5 +108,22 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
+  }
+  button,
+  [role="button"],
+  a,
+  label[for],
+  select,
+  summary,
+  [tabindex]:not([tabindex="-1"]) {
+    cursor: pointer;
+  }
+  input,
+  textarea {
+    cursor: text;
+  }
+  [disabled],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
   }
 }

@@ -16,7 +16,7 @@
 | 7 — Adaptive Smart Quiz | Done | (phase-7-adaptive-quiz branch) |
 | 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
 | 9 — Collaborative Quiz Rooms | Done | (phase-9-realtime-quiz-rooms branch) |
-| Pre-10 Polish | Done | `3de8355`, `b096666` |
+| Pre-10 Polish | Done | `3de8355`, `b66e87f`, `6b67281` |
 | 10 — Polish & Demo Prep | In Progress | — |
 
 **Deviations from original plan (carry forward):**
@@ -25,7 +25,10 @@
 - Route grouping uses `app/(app)/` and `app/(auth)/` segment groups — differs from the flat tree originally sketched below but functionally equivalent.
 - Dashboard course cards showed hardcoded `0 materials · 0 quizzes` — **fixed pre-Phase 10** (`b096666`).
 - PDF upload refactored to two-phase (client→storage + server parse) with `maxDuration = 60` — **fixed pre-Phase 10** (`3de8355`).
-- Landing page fully redesigned with hero, feature grid, how-it-works, auth-aware CTAs — **fixed pre-Phase 10** (`b096666`).
+- Landing page fully redesigned with hero, feature grid, how-it-works, auth-aware CTAs — **fixed pre-Phase 10** (`b66e87f`).
+- Reader/accessible theme added (warm sepia palette); system theme dropped; toggle cycles light → dark → reader — **fixed pre-Phase 10** (`6b67281`).
+- Global `cursor:pointer` rule added for all interactive elements — **fixed pre-Phase 10** (`6b67281`).
+- Sidebar nav and toggle icons bumped for accessibility — **fixed pre-Phase 10** (`6b67281`).
 
 ## Folder Structure (actual, as of Phase 7)
 

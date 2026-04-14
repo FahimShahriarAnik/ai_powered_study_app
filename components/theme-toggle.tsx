@@ -1,11 +1,23 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { BookOpen, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-const ORDER = ["light", "dark", "system"] as const;
+const ORDER = ["light", "dark", "reader"] as const;
 type Mode = (typeof ORDER)[number];
+
+const ICONS: Record<Mode, React.ElementType> = {
+  light: Sun,
+  dark: Moon,
+  reader: BookOpen,
+};
+
+const LABELS: Record<Mode, string> = {
+  light: "Light",
+  dark: "Dark",
+  reader: "Reader",
+};
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -13,11 +25,13 @@ export function ThemeToggle() {
 
   useEffect(() => setMounted(true), []);
 
-  const current: Mode = mounted && ORDER.includes(theme as Mode) ? (theme as Mode) : "system";
+  // Default to "light" if theme is "system" (removed) or unrecognised
+  const current: Mode =
+    mounted && ORDER.includes(theme as Mode) ? (theme as Mode) : "light";
   const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length];
 
-  const Icon = current === "light" ? Sun : current === "dark" ? Moon : Monitor;
-  const label = `Switch to ${next} theme`;
+  const Icon = ICONS[current];
+  const label = `Switch to ${LABELS[next]} theme`;
 
   return (
     <button
@@ -27,7 +41,7 @@ export function ThemeToggle() {
       onClick={() => setTheme(next)}
       className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
     >
-      {mounted ? <Icon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+      {mounted ? <Icon className="h-5 w-5" /> : <span className="h-5 w-5" />}
     </button>
   );
 }

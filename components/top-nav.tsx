@@ -43,7 +43,7 @@ export function TopNav({ user, courses }: { user: User | null; courses: Course[]
               "md:hidden"
             )}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
             <span className="sr-only">Open menu</span>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
@@ -53,7 +53,7 @@ export function TopNav({ user, courses }: { user: User | null; courses: Course[]
 
         <Link
           href="/"
-          className="cursor-pointer font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity md:hidden"
+          className="cursor-pointer font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity"
         >
           Cortex
         </Link>
