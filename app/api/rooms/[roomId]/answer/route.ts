@@ -30,6 +30,7 @@ export async function POST(
     );
   }
 
+  // Verify room state
   const { data: room } = await supabase
     .from("quiz_rooms")
     .select("*")
@@ -49,11 +50,12 @@ export async function POST(
     );
   }
 
-  // Reject if the game hasn't started yet (still in countdown)
+  // Reject answers during the countdown phase
   if (room.question_started_at && new Date(room.question_started_at).getTime() > Date.now()) {
     return NextResponse.json({ error: "Game hasn't started yet" }, { status: 409 });
   }
 
+  // Verify participant
   const { data: participant } = await supabase
     .from("room_participants")
     .select("id, score")
@@ -65,14 +67,14 @@ export async function POST(
     return NextResponse.json({ error: "Not a participant" }, { status: 403 });
   }
 
-  const { data: questions } = await supabase
-    .from("questions")
-    .select("id, correct_index, position")
-    .eq("quiz_id", room.quiz_id)
+  // Read correct_index from room_questions snapshot — accessible to all authenticated users
+  const { data: roomQuestions } = await supabase
+    .from("room_questions")
+    .select("position, correct_index")
+    .eq("room_id", roomId)
     .order("position", { ascending: true });
 
-  const allQuestions = questions ?? [];
-  const question = allQuestions[questionIndex];
+  const question = (roomQuestions ?? [])[questionIndex];
   if (!question) {
     return NextResponse.json({ error: "Question not found" }, { status: 404 });
   }
@@ -100,9 +102,9 @@ export async function POST(
 
   let points = 0;
   if (isCorrect) {
-    // Time-based bonus: remaining total time / total duration → 0–MAX_BONUS extra pts
+    // Time-based bonus: more time remaining = higher bonus (0–MAX_BONUS)
     const gameStartedAt = new Date(room.question_started_at!).getTime();
-    const totalDurationMs = allQuestions.length * room.question_duration_seconds * 1000;
+    const totalDurationMs = (roomQuestions ?? []).length * room.question_duration_seconds * 1000;
     const elapsed = Date.now() - gameStartedAt;
     const remaining = Math.max(0, totalDurationMs - elapsed);
     const timeFraction = remaining / totalDurationMs;

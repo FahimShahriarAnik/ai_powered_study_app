@@ -37,7 +37,6 @@ export default async function RoomPage({
     .maybeSingle();
 
   if (!myParticipant) {
-    // Not a participant — redirect to rooms hub
     redirect("/rooms");
   }
 
@@ -48,20 +47,18 @@ export default async function RoomPage({
     .eq("room_id", roomId)
     .order("joined_at", { ascending: true });
 
-  // Fetch questions WITHOUT correct_index
-  const { data: questions } = await supabase
-    .from("questions")
-    .select(
-      "id, quiz_id, question, options, topic, difficulty, explanation, position, created_at"
-    )
-    .eq("quiz_id", room.quiz_id)
+  // Read from room_questions snapshot — open RLS, accessible to host and guests alike
+  const { data: roomQuestions } = await supabase
+    .from("room_questions")
+    .select("id, quiz_id, position, question, options, topic, difficulty, explanation, created_at")
+    .eq("room_id", roomId)
     .order("position", { ascending: true });
 
-  const sanitized: SanitizedQuestion[] = (questions ?? []).map((q) => ({
+  const sanitized: SanitizedQuestion[] = (roomQuestions ?? []).map((q) => ({
     id: q.id,
     quiz_id: q.quiz_id,
     question: q.question,
-    options: q.options,
+    options: q.options as string[],
     topic: q.topic,
     difficulty: q.difficulty,
     explanation: q.explanation,
@@ -69,7 +66,7 @@ export default async function RoomPage({
     created_at: q.created_at,
   }));
 
-  // Fetch existing answers for current question (for state rehydration on refresh)
+  // Fetch existing answers for current question (state rehydration on refresh)
   const { data: currentAnswers } = await supabase
     .from("room_answers")
     .select("id, participant_id, question_index, is_correct, answered_at")

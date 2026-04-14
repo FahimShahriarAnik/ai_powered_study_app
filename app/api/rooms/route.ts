@@ -48,7 +48,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Generate unique room code (retry on collision — astronomically unlikely)
+  // Fetch the actual questions now (host session — they own the quiz, RLS allows it)
+  const { data: sourceQuestions } = await supabase
+    .from("questions")
+    .select("position, question, options, correct_index, topic, difficulty, explanation")
+    .eq("quiz_id", quizId)
+    .order("position", { ascending: true });
+
+  if (!sourceQuestions || sourceQuestions.length === 0) {
+    return NextResponse.json({ error: "No questions found for quiz" }, { status: 400 });
+  }
+
+  // Generate unique room code (retry on collision)
   let code = generateRoomCode();
   let attempts = 0;
   while (attempts < 5) {
@@ -84,6 +95,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Snapshot questions into room_questions — open RLS so guests can read them
+  const snapshot = sourceQuestions.map((q) => ({
+    room_id: room.id,
+    quiz_id: quizId,
+    position: q.position,
+    question: q.question,
+    options: q.options,
+    correct_index: q.correct_index,
+    topic: q.topic,
+    difficulty: q.difficulty,
+    explanation: q.explanation,
+  }));
+
+  const { error: snapshotError } = await supabase
+    .from("room_questions")
+    .insert(snapshot);
+
+  if (snapshotError) {
+    // Clean up orphan room — don't leave a room with no questions
+    await supabase.from("quiz_rooms").delete().eq("id", room.id);
+    return NextResponse.json(
+      { error: "Failed to snapshot quiz questions" },
+      { status: 500 }
+    );
+  }
+
   // Add host as first participant
   const displayName = extractDisplayName(user.email ?? user.id);
   const { data: participant, error: participantError } = await supabase
@@ -98,7 +135,6 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (participantError || !participant) {
-    // Cleanup orphan room
     await supabase.from("quiz_rooms").delete().eq("id", room.id);
     return NextResponse.json(
       { error: "Failed to create participant" },

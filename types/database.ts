@@ -309,6 +309,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      room_questions: {
+        Row: {
+          id: string;
+          room_id: string;
+          quiz_id: string;
+          position: number;
+          question: string;
+          options: string[];
+          correct_index: number;
+          topic: string;
+          difficulty: string;
+          explanation: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          quiz_id: string;
+          position: number;
+          question: string;
+          options: string[];
+          correct_index: number;
+          topic: string;
+          difficulty: string;
+          explanation: string;
+          created_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
       material_notes: {
         Row: {
           id: string;
@@ -447,6 +477,10 @@ export type AiInsightContent = AiInsight["content"];
 export type QuizRoom = Database["public"]["Tables"]["quiz_rooms"]["Row"];
 export type RoomParticipant = Database["public"]["Tables"]["room_participants"]["Row"];
 export type RoomAnswer = Database["public"]["Tables"]["room_answers"]["Row"];
+export type RoomQuestion = Database["public"]["Tables"]["room_questions"]["Row"];
 
 // Question with correct_index stripped — safe to send to client during active game
 export type SanitizedQuestion = Omit<Question, "correct_index">;
+
+// RoomQuestion without correct_index — maps to SanitizedQuestion shape for the client
+export type SanitizedRoomQuestion = Omit<RoomQuestion, "correct_index">;

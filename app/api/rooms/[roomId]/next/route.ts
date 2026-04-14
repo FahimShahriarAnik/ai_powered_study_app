@@ -40,14 +40,14 @@ export async function POST(
     return NextResponse.json({ ok: true, alreadyAdvanced: true });
   }
 
-  // Get correct_index for revealed_answers
-  const { data: questions } = await supabase
-    .from("questions")
-    .select("id, correct_index, position")
-    .eq("quiz_id", room.quiz_id)
+  // Read correct_index from room_questions snapshot
+  const { data: roomQuestions } = await supabase
+    .from("room_questions")
+    .select("position, correct_index")
+    .eq("room_id", roomId)
     .order("position", { ascending: true });
 
-  const allQuestions = questions ?? [];
+  const allQuestions = roomQuestions ?? [];
   const currentQuestion = allQuestions[fromQuestion];
 
   const updatedRevealed = {
@@ -58,8 +58,8 @@ export async function POST(
   const nextQuestion = fromQuestion + 1;
   const isLastQuestion = nextQuestion >= allQuestions.length;
 
-  // NOTE: question_started_at is the game start time (set once when game starts).
-  // We do NOT update it here — the total timer runs from that fixed timestamp.
+  // NOTE: question_started_at is set once when the game starts (total timer origin).
+  // We do NOT update it here — it's the fixed reference for the total countdown.
   const { error } = await supabase
     .from("quiz_rooms")
     .update({
