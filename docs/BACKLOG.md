@@ -18,6 +18,9 @@ Deferred features and known TODOs across phases.
 - [x] **Reader / accessible theme** — New `.reader` CSS class: warm sepia background, deep forest green primary, amber accent. Replaces system theme in the toggle cycle (light → dark → reader). (`6b67281`)
 - [x] **Cursor not pointer on interactive elements** — Global CSS rule covers `button`, `a`, `[role=button]`, `label[for]`, `select`, `summary`, `[tabindex]`; disabled elements get `not-allowed`. (`6b67281`)
 - [x] **Icons too small** — Sidebar nav icons and theme toggle bumped from `h-4` to `h-5`; mobile hamburger from `h-5` to `h-6`. (`6b67281`)
+- [x] **Landing feature cards not clickable** — Wrapped in `<Link>`; logged-in → specific page, logged-out → `/login`. Feature titles rewritten for general audience. (`3285241`)
+- [x] **Primary buttons hard to spot** — "Chat with AI" and "Generate Quiz" changed to filled primary + shadow; "Add Material" demoted to outline for clear hierarchy. (`2e2a805`)
+- [x] **UI too sparse / excessive negative space** — Sidebar nav `h-9→h-11`, `text-sm→text-base font-medium`; stat cards `p-4→p-6`, values `text-2xl→text-4xl font-bold`; course cards larger title/date; material card padding and text bumped throughout; all primary CTA buttons promoted from `size=sm` to default. (pending push)
 
 ---
 

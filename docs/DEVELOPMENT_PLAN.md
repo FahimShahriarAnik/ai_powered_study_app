@@ -29,6 +29,9 @@
 - Reader/accessible theme added (warm sepia palette); system theme dropped; toggle cycles light → dark → reader — **fixed pre-Phase 10** (`6b67281`).
 - Global `cursor:pointer` rule added for all interactive elements — **fixed pre-Phase 10** (`6b67281`).
 - Sidebar nav and toggle icons bumped for accessibility — **fixed pre-Phase 10** (`6b67281`).
+- Landing feature cards made clickable with auth-aware routing; titles rewritten for general audience — **fixed pre-Phase 10** (`3285241`).
+- Primary CTA buttons ("Chat with AI", "Generate Quiz") promoted to filled primary; button size hierarchy established — **fixed pre-Phase 10** (`2e2a805`).
+- UI density pass: sidebar nav taller, stat cards larger, course/material cards more padding, all primary CTAs promoted from `size=sm` to default — **fixed pre-Phase 10** (`29077fa`).
 - **Phase 10 additions (2026-04-14):**
   - Confidence self-rating (optional 🤔/🤷/💡 buttons in quiz runner) + overconfidence analytics card.
   - Smart Quiz upgraded: multi-material checkbox select + 3 presets (Focus Weak 60/30/10, Balanced 40/40/20, Challenge 10/30/60) + title no longer exposes raw filename.
