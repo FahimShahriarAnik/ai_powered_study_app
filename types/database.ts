@@ -309,6 +309,71 @@ export interface Database {
         };
         Relationships: [];
       };
+      material_notes: {
+        Row: {
+          id: string;
+          user_id: string;
+          material_id: string;
+          content: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          material_id: string;
+          content?: string;
+          updated_at?: string;
+        };
+        Update: {
+          content?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      flashcard_sets: {
+        Row: {
+          id: string;
+          user_id: string;
+          material_id: string;
+          title: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          material_id: string;
+          title: string;
+          created_at?: string;
+        };
+        Update: {
+          title?: string;
+        };
+        Relationships: [];
+      };
+      flashcards: {
+        Row: {
+          id: string;
+          set_id: string;
+          front: string;
+          back: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          set_id: string;
+          front: string;
+          back: string;
+          sort_order: number;
+          created_at?: string;
+        };
+        Update: {
+          front?: string;
+          back?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
       ai_insights: {
         Row: {
           id: string;
@@ -370,6 +435,11 @@ export type QuizWithAttempts = Quiz & {
 };
 
 export type MaterialChunk = Database["public"]["Tables"]["material_chunks"]["Row"];
+
+export type MaterialNote = Database["public"]["Tables"]["material_notes"]["Row"];
+export type FlashcardSet = Database["public"]["Tables"]["flashcard_sets"]["Row"];
+export type Flashcard = Database["public"]["Tables"]["flashcards"]["Row"];
+export type FlashcardSetWithCards = FlashcardSet & { flashcards: Flashcard[] };
 
 export type AiInsight = Database["public"]["Tables"]["ai_insights"]["Row"];
 export type AiInsightContent = AiInsight["content"];

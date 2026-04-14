@@ -10,7 +10,8 @@ import { GenerateQuizButton } from "@/components/quiz/generate-quiz-button";
 import { QuizPreviewCard } from "@/components/quiz/quiz-preview-card";
 import { cn } from "@/lib/utils";
 import type { Material, QuizWithAttempts } from "@/types/database";
-import { ChevronDown, FileText } from "lucide-react";
+import { BookOpen, ChevronDown, FileText } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 interface Props {
@@ -44,6 +45,13 @@ export function MaterialCard({ material, quizzes, courseId }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/courses/${courseId}/materials/${material.id}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <BookOpen className="h-4 w-4 mr-1.5" />
+              Study
+            </Link>
             <GenerateQuizButton materialId={material.id} />
             <CollapsibleTrigger
               className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
