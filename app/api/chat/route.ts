@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     messages: { role: string; content: string }[];
     courseId: string;
+    materialIds?: string[]; // optional filter — null/empty = search all course materials
   };
 
-  const { messages, courseId } = body;
+  const { messages, courseId, materialIds } = body;
 
   if (!courseId) {
     return new Response(JSON.stringify({ error: "courseId required" }), {
@@ -74,14 +75,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Semantic similarity search via Supabase RPC
+  // Build RPC params — pass material_ids only when a non-empty subset is selected
+  const rpcParams: Record<string, unknown> = {
+    query_embedding: queryEmbedding,
+    course_id_filter: courseId,
+    match_count: MATCH_COUNT,
+  };
+  if (materialIds && materialIds.length > 0) {
+    rpcParams.material_ids = materialIds;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: chunks, error: rpcError } = await (supabase as any).rpc(
     "match_material_chunks",
-    {
-      query_embedding: queryEmbedding,
-      course_id_filter: courseId,
-      match_count: MATCH_COUNT,
-    }
+    rpcParams
   );
 
   if (rpcError) {

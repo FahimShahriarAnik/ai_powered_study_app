@@ -11,7 +11,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Loader2, MessageSquare, RefreshCw, Send, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { Bot, Loader2, RefreshCw, Send, User } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,11 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: string[]; // material titles cited by this assistant response
+}
+
+interface MaterialOption {
+  id: string;
+  title: string;
 }
 
 interface Props {
@@ -62,6 +69,10 @@ export function CourseChatSheet({
   const [embedError, setEmbedError] = useState<string | null>(null);
   const [chunkCount, setChunkCount] = useState(0);
 
+  // Material filter state
+  const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
+
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -76,13 +87,41 @@ export function CourseChatSheet({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Check embed status when sheet first opens
+  // Check embed status + fetch materials when sheet first opens
   useEffect(() => {
     if (!sheetOpen) return;
     if (embedStatus !== "unknown") return;
     void checkEmbedStatus();
+    void fetchMaterials();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetOpen]);
+
+  // ── Materials ───────────────────────────────────────────────────────────────
+
+  async function fetchMaterials() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("materials")
+      .select("id, title")
+      .eq("course_id", courseId)
+      .order("created_at", { ascending: true });
+    const opts: MaterialOption[] = data ?? [];
+    setMaterialOptions(opts);
+    setSelectedMaterialIds(new Set(opts.map((m) => m.id)));
+  }
+
+  function toggleMaterial(id: string) {
+    setSelectedMaterialIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        if (next.size === 1) return prev; // keep at least one selected
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   // ── Embedding ───────────────────────────────────────────────────────────────
 
@@ -166,7 +205,11 @@ export function CourseChatSheet({
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: historyForApi, courseId }),
+          body: JSON.stringify({
+            messages: historyForApi,
+            courseId,
+            materialIds: Array.from(selectedMaterialIds),
+          }),
           signal: abortRef.current.signal,
         });
 
@@ -214,7 +257,7 @@ export function CourseChatSheet({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messages, courseId, isStreaming]
+    [messages, courseId, isStreaming, selectedMaterialIds]
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -337,6 +380,30 @@ export function CourseChatSheet({
             {/* Chat UI */}
             {embedStatus === "ready" && (
               <>
+                {/* Material filter pills */}
+                {materialOptions.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
+                    {materialOptions.map((m) => {
+                      const active = selectedMaterialIds.has(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleMaterial(m.id)}
+                          className={cn(
+                            "max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                            active
+                              ? "border-primary bg-primary/10 text-foreground"
+                              : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                          )}
+                          title={m.title}
+                        >
+                          {m.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <ScrollArea className="flex-1 px-4 py-3">
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
