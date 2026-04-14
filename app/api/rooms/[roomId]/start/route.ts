@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const COUNTDOWN_SECONDS = 5;
+const COUNTDOWN_SECONDS = 15;
 
 export async function POST(
   _request: NextRequest,

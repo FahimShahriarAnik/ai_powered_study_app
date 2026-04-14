@@ -201,42 +201,46 @@ export function RoomClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRoom.id]);
 
-  // ─── Polling fallback (handles Realtime RLS edge cases) ───────────────────
-  // Polls every 2s so the non-host always picks up status/question changes
-  // even if the Realtime subscription doesn't fire for that user's session.
+  // ─── Polling via API route (RLS-safe) ────────────────────────────────────
+  // Direct client-side Supabase queries fail for the non-host because RLS on
+  // quiz_rooms restricts SELECT to the host. The GET /api/rooms/[roomId] route
+  // uses the server-side Supabase client which bypasses RLS, so both players
+  // always receive up-to-date state. Realtime is kept as a fast-path when it
+  // works; this poll is the reliable fallback.
   useEffect(() => {
     const poll = async () => {
-      const { data: roomData } = await supabase
-        .from("quiz_rooms")
-        .select("*")
-        .eq("id", initialRoom.id)
-        .single();
+      try {
+        const res = await fetch(`/api/rooms/${initialRoom.id}`);
+        if (!res.ok) return;
+        const json = await res.json() as {
+          room: QuizRoom;
+          participants: RoomParticipant[];
+          currentAnswers: PartialAnswer[];
+        };
 
-      if (!roomData) return;
+        const { room: roomData, participants: pData, currentAnswers: caData } = json;
 
-      setRoom((prev) => {
-        const changed =
-          prev.status !== roomData.status ||
-          prev.current_question !== roomData.current_question ||
-          prev.question_started_at !== roomData.question_started_at;
-        if (!changed) return prev;
-        setRevealedAnswers(roomData.revealed_answers ?? {});
-        if (roomData.current_question !== prev.current_question) {
-          setCurrentAnswers([]);
-          setMyAnswerIndex(null);
-          setMyAnswerCorrect(null);
-          setMyLastPoints(null);
-          advancingRef.current = false;
-        }
-        return roomData as QuizRoom;
-      });
+        setRoom((prev) => {
+          const changed =
+            prev.status !== roomData.status ||
+            prev.current_question !== roomData.current_question ||
+            prev.question_started_at !== roomData.question_started_at;
+          if (!changed) return prev;
+          setRevealedAnswers(roomData.revealed_answers ?? {});
+          if (roomData.current_question !== prev.current_question) {
+            setCurrentAnswers(caData);
+            setMyAnswerIndex(null);
+            setMyAnswerCorrect(null);
+            setMyLastPoints(null);
+            advancingRef.current = false;
+          }
+          return roomData;
+        });
 
-      // Also refresh participants for up-to-date scores
-      const { data: pData } = await supabase
-        .from("room_participants")
-        .select("*")
-        .eq("room_id", initialRoom.id);
-      if (pData) setParticipants(pData as RoomParticipant[]);
+        setParticipants(pData);
+      } catch {
+        // Network error — silently ignore, next tick will retry
+      }
     };
 
     const interval = setInterval(poll, 2000);
