@@ -10,7 +10,7 @@ export const questionSchema = z.object({
 });
 
 export const quizSchema = z.object({
-  questions: z.array(questionSchema).min(1).max(10),
+  questions: z.array(questionSchema).min(1).max(15),
 });
 
 export type QuestionSchema = z.infer<typeof questionSchema>;

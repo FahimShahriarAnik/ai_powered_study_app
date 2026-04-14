@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/types/database";
 
-const MAX_QUESTIONS = 10;
+const MAX_QUESTIONS = 15;
 const RATE_LIMIT_MS = 60_000; // 1 minute per material
 const MAX_TEXT_CHARS = 15_000; // truncate to avoid token bloat
 

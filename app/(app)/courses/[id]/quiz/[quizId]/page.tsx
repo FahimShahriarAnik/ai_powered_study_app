@@ -19,7 +19,7 @@ export default async function QuizRunnerPage({
 
   const { data: quizRaw } = await supabase
     .from("quizzes")
-    .select("id, title, question_count, material_id")
+    .select("id, title, question_count, material_id, difficulty")
     .eq("id", quizId)
     .single();
 
@@ -74,12 +74,16 @@ export default async function QuizRunnerPage({
     throw new Error(attemptErr?.message ?? "Failed to start attempt");
   }
 
+  // For adaptive (smart) quizzes, use the quiz title instead of the raw material filename
+  const displayTitle =
+    quizRaw.difficulty === "adaptive" ? quizRaw.title : material.title;
+
   return (
     <QuizRunner
       courseId={id}
       quizId={quizId}
       attemptId={attempt.id}
-      materialTitle={material.title}
+      materialTitle={displayTitle}
       questions={questions}
     />
   );

@@ -23,6 +23,8 @@ type MaterialOption = {
 
 type Preset = "weak" | "balanced" | "strong";
 
+const QUESTION_COUNTS = [5, 7, 10, 12, 15];
+
 const PRESETS: { value: Preset; label: string; description: string }[] = [
   { value: "weak", label: "Focus Weak", description: "60% weak · 30% medium · 10% strong" },
   { value: "balanced", label: "Balanced", description: "40% weak · 40% medium · 20% strong" },
@@ -50,6 +52,7 @@ export function SmartQuizDialog({
   const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [preset, setPreset] = useState<Preset>("balanced");
+  const [questionCount, setQuestionCount] = useState(10);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,7 +133,7 @@ export function SmartQuizDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           materialIds: Array.from(selectedIds),
-          questionCount: 10,
+          questionCount,
           preset,
         }),
       });
@@ -188,6 +191,27 @@ export function SmartQuizDialog({
                 <span className="text-[10px] leading-tight text-muted-foreground">
                   {p.description}
                 </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Question count */}
+        <div className="flex items-center gap-3">
+          <p className="text-xs font-medium text-muted-foreground">Questions</p>
+          <div className="flex gap-1.5">
+            {QUESTION_COUNTS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setQuestionCount(n)}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  questionCount === n
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                )}
+              >
+                {n}
               </button>
             ))}
           </div>

@@ -12,7 +12,7 @@ import {
   type SmartQuizPreset,
 } from "@/lib/analytics/user-stats";
 
-const MAX_QUESTIONS = 10;
+const MAX_QUESTIONS = 15;
 const RATE_LIMIT_MS = 60_000;
 const MAX_TEXT_CHARS = 15_000;
 const MAX_TEXT_PER_MATERIAL = 5_000; // per-material cap when combining multiple
@@ -170,10 +170,9 @@ ${rawText}`,
   );
   const { questions } = result.object;
 
-  const quizTitle =
-    materials.length > 1
-      ? `Smart Quiz — ${materials.map((m) => m.title).join(", ")}`
-      : `Smart Quiz — ${primaryMaterial.title}`;
+  const presetLabel =
+    validPreset === "weak" ? "Focus Weak" : validPreset === "strong" ? "Challenge" : "Balanced";
+  const quizTitle = `Smart Quiz · ${presetLabel}`;
 
   const { data: quiz, error: quizError } = await supabase
     .from("quizzes")
