@@ -2,7 +2,7 @@
 
 > Phases are sequential. Do NOT start a phase until the previous one is committed and confirmed working.
 
-## Current Status (as of 2026-04-14 — Phase 10 in progress)
+## Current Status (as of 2026-04-14 — Study Mode in progress)
 
 | Phase | Status | Commit |
 |---|---|---|
@@ -17,7 +17,8 @@
 | 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
 | 9 — Collaborative Quiz Rooms | Done | (phase-9-realtime-quiz-rooms branch) |
 | Pre-10 Polish | Done | `3de8355`, `b66e87f`, `6b67281` |
-| 10 — Polish & Demo Prep | In Progress | see Phase 10 log entries |
+| 10 — Polish & Demo Prep | Done | see Phase 10 log entries |
+| 11 — Study Mode | In Progress | `feature/study-mode` branch |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
@@ -39,8 +40,53 @@
   - Cited Sources in RAG chat: material titles delivered via `X-Sources` header, rendered beneath assistant bubbles.
   - Question count picker (5/7/10/12/15) on both regular quiz button and Smart Quiz dialog.
   - **DB migration required:** `ALTER TABLE answer_records ADD COLUMN IF NOT EXISTS confidence integer;`
+- **Phase 11 additions (2026-04-14) — branch `feature/study-mode`:**
+  - Study Mode: "Study" button on each material card links to `/courses/[id]/materials/[materialId]`.
+  - **Read tab:** full material text in a scrollable reader view + link to original PDF.
+  - **Notes tab:** persistent per-material notes with 500ms debounced auto-save (`material_notes` table).
+  - **Flashcards tab:** AI-generated flashcard sets (Gemini, 10–15 cards); big 3D flip-card viewer with keyboard nav (←/→, Space).
+  - AI gap analysis deliberately excluded — would suggest out-of-scope content.
+  - **DB migrations required:**
+    ```sql
+    -- material_notes
+    CREATE TABLE IF NOT EXISTS material_notes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      material_id UUID NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+      content TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, material_id)
+    );
+    ALTER TABLE material_notes ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Users manage own material notes" ON material_notes
+      USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    -- flashcard_sets
+    CREATE TABLE IF NOT EXISTS flashcard_sets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      material_id UUID NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    ALTER TABLE flashcard_sets ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Users manage own flashcard sets" ON flashcard_sets
+      USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    -- flashcards
+    CREATE TABLE IF NOT EXISTS flashcards (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      set_id UUID NOT NULL REFERENCES flashcard_sets(id) ON DELETE CASCADE,
+      front TEXT NOT NULL,
+      back TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    ALTER TABLE flashcards ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Users manage own flashcards" ON flashcards
+      USING (EXISTS (SELECT 1 FROM flashcard_sets fs WHERE fs.id = flashcards.set_id AND fs.user_id = auth.uid()))
+      WITH CHECK (EXISTS (SELECT 1 FROM flashcard_sets fs WHERE fs.id = flashcards.set_id AND fs.user_id = auth.uid()));
+    ```
 
-## Folder Structure (actual, as of Phase 7)
+## Folder Structure (actual, as of Phase 11 — Study Mode)
 
 ```
 /
@@ -51,6 +97,9 @@
 │   │   ├── dashboard/page.tsx
 │   │   └── courses/[id]/
 │   │       ├── page.tsx
+│   │       ├── materials/[materialId]/
+│   │       │   ├── page.tsx                    # Phase 11 — study page (server)
+│   │       │   └── study-client.tsx            # Phase 11 — Read/Notes/Flashcards tabs
 │   │       └── quiz/[quizId]/
 │   │           ├── page.tsx                    # Phase 5
 │   │           ├── quiz-runner.tsx             # Phase 5
@@ -62,8 +111,10 @@
 │   ├── api/
 │   │   ├── analytics/insights/route.ts         # Phase 6
 │   │   ├── eli5/route.ts                       # Phase 5
+│   │   ├── generate-flashcards/route.ts        # Phase 11
 │   │   ├── generate-quiz/route.ts
 │   │   ├── generate-smart-quiz/route.ts        # Phase 7
+│   │   ├── material-notes/route.ts             # Phase 11
 │   │   └── parse-pdf/route.ts
 │   ├── layout.tsx
 │   ├── page.tsx

@@ -33,6 +33,7 @@ This is where the competition is won. Judges are from a Business Analytics depar
 | **ELI5 explanations** | One-tap simplified analogy for any question explanation |
 | **Auto-generated study plan** | AI builds a personalized review schedule based on weak topics + exam date |
 | **Collaborative / competitive quiz rooms** | Two users on same material in sync (Supabase Realtime) |
+| **Study Mode** | Per-material reader, persistent notes, AI-generated flashcards with 3D flip-card UI |
 
 ## Why Free Stack Works
 
@@ -51,7 +52,6 @@ This is where the competition is won. Judges are from a Business Analytics depar
 
 ## Future Planning (Post-Competition or If Time Permits)
 
-- **Material reader + inline notes:** dedicated reader view for uploaded materials (PDF/text) with the ability to highlight passages and attach notes that persist per material.
 - **Note hub:** unified view of all notes (in-quiz + on-material) searchable across courses.
 - **Mobile-native (React Native/Expo)** wrapper.
 - **Spaced repetition** scheduling for missed questions.
