@@ -30,6 +30,9 @@ interface Props {
   isHost: boolean;
 }
 
+// participantId → questionIndex → isCorrect
+type AnswerMap = Record<string, Record<number, boolean>>;
+
 type FlashState = {
   correctIndex: number;
   isCorrect: boolean;
@@ -79,6 +82,7 @@ export function RoomClient({
       )
   );
 
+  const [answers, setAnswers] = useState<AnswerMap>({});
   const [myAnswerIndex, setMyAnswerIndex] = useState<number | null>(null);
   const [flash, setFlash] = useState<FlashState | null>(null);
   const [copied, setCopied] = useState(false);
@@ -93,7 +97,7 @@ export function RoomClient({
 
   // ─── Derived timing ───────────────────────────────────────────────────────
   const totalQuestions = questions.length;
-  const totalDurationSec = totalQuestions * room.question_duration_seconds;
+
 
   const gameStartMs = room.question_started_at
     ? new Date(room.question_started_at).getTime()
@@ -191,6 +195,7 @@ export function RoomClient({
           room: QuizRoom;
           participants: RoomParticipant[];
           questions: SanitizedQuestion[];
+          answers: { participant_id: string; question_index: number; is_correct: boolean }[];
         };
 
         if (json.questions.length > 0) {
@@ -205,6 +210,14 @@ export function RoomClient({
           return json.room;
         });
         setParticipants(json.participants);
+        if (json.answers.length > 0) {
+          const map: AnswerMap = {};
+          for (const a of json.answers) {
+            if (!map[a.participant_id]) map[a.participant_id] = {};
+            map[a.participant_id][a.question_index] = a.is_correct;
+          }
+          setAnswers(map);
+        }
       } catch {
         // Network error — silently ignore
       }
@@ -406,54 +419,115 @@ export function RoomClient({
     const sorted = [...participants].sort((a, b) => b.score - a.score);
     const winner = sorted[0];
     const iWon = winner?.id === myParticipantId;
+    const gameStartMs = room.question_started_at
+      ? new Date(room.question_started_at).getTime()
+      : null;
+
+    function finishTime(p: RoomParticipant): string {
+      if (!p.finished_at || !gameStartMs) return "—";
+      const secs = Math.round(
+        (new Date(p.finished_at).getTime() - gameStartMs) / 1000
+      );
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    }
+
+    function accuracy(p: RoomParticipant): string {
+      const pAnswers = answers[p.id] ?? {};
+      const correct = Object.values(pAnswers).filter(Boolean).length;
+      const total = totalQuestions;
+      return `${correct}/${total} correct`;
+    }
 
     return (
-      <div className="mx-auto max-w-md p-6">
-        <div className="mb-8 text-center">
+      <div className="mx-auto max-w-2xl p-6 pb-16">
+        {/* Header */}
+        <div className="mb-6 text-center">
           <div className="mb-3 inline-flex items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30 p-3">
             <Trophy className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">
             {iWon ? "You won!" : "Good game!"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {totalQuestions} questions · max {maxScore} pts
-          </p>
         </div>
 
-        <div className="space-y-3 mb-8">
+        {/* Score cards */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
           {sorted.map((p, i) => {
             const isMe = p.id === myParticipantId;
             return (
               <div
                 key={p.id}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg border px-4 py-3",
+                  "rounded-lg border p-4 text-center",
                   i === 0
                     ? "border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20"
                     : "border-border bg-card"
                 )}
               >
-                <span className="text-lg font-bold text-muted-foreground w-6">
-                  #{i + 1}
-                </span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground capitalize">
-                    {p.display_name}
-                    {isMe && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        (you)
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-foreground">{p.score}</p>
-                  <p className="text-xs text-muted-foreground">pts</p>
-                </div>
+                <p className="text-xs font-medium text-muted-foreground capitalize mb-1">
+                  {p.display_name}
+                  {isMe && <span className="ml-1 text-primary">(you)</span>}
+                </p>
+                <p className="text-3xl font-black text-foreground">
+                  {p.score}
+                  <span className="text-xs font-normal text-muted-foreground ml-0.5">pts</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{accuracy(p)}</p>
+                <p className="text-xs text-muted-foreground">
+                  <Clock className="inline h-3 w-3 mr-0.5" />
+                  {finishTime(p)}
+                </p>
               </div>
             );
           })}
+        </div>
+
+        {/* Per-question breakdown */}
+        <div className="rounded-lg border border-border overflow-hidden mb-6">
+          {/* Table header */}
+          <div className="grid grid-cols-[2rem_1fr_3.5rem_3.5rem] gap-x-3 px-4 py-2 bg-muted/50 border-b border-border">
+            <span className="text-xs font-medium text-muted-foreground text-center">#</span>
+            <span className="text-xs font-medium text-muted-foreground">Question</span>
+            {participants.map((p) => (
+              <span
+                key={p.id}
+                className="text-xs font-medium text-muted-foreground text-center capitalize truncate"
+              >
+                {p.display_name.split(" ")[0]}
+              </span>
+            ))}
+          </div>
+
+          {/* Rows */}
+          <div className="divide-y divide-border">
+            {questions.map((q, qi) => (
+              <div
+                key={q.id}
+                className="grid grid-cols-[2rem_1fr_3.5rem_3.5rem] gap-x-3 px-4 py-3 items-start"
+              >
+                <span className="text-xs text-muted-foreground text-center pt-0.5">
+                  {qi + 1}
+                </span>
+                <p className="text-sm text-foreground leading-snug">{q.question}</p>
+                {participants.map((p) => {
+                  const result = answers[p.id]?.[qi];
+                  return (
+                    <div key={p.id} className="flex justify-center pt-0.5">
+                      {result === undefined ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : result ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <X className="h-4 w-4 text-destructive" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
 
         <Button
@@ -779,15 +853,6 @@ export function RoomClient({
         )}
       </div>
 
-      {/* Explanation shown during flash */}
-      {flash !== null && (
-        <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">
-            Explanation
-          </p>
-          <p className="text-sm text-foreground">{currentQ.explanation}</p>
-        </div>
-      )}
     </div>
   );
 }

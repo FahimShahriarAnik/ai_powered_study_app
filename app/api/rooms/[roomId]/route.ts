@@ -65,10 +65,17 @@ export async function GET(
     created_at: q.created_at,
   }));
 
+  // Fetch all answers for the room (needed for results breakdown)
+  const { data: allAnswers } = await supabase
+    .from("room_answers")
+    .select("participant_id, question_index, is_correct")
+    .eq("room_id", roomId);
+
   return NextResponse.json({
     room,
     participants: participants ?? [],
     questions: sanitized,
     myParticipantId: participant.id,
+    answers: allAnswers ?? [],
   });
 }
