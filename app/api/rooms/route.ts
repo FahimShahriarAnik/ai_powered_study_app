@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -18,6 +19,7 @@ function extractDisplayName(email: string): string {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -108,7 +110,7 @@ export async function POST(request: NextRequest) {
     explanation: q.explanation,
   }));
 
-  const { error: snapshotError } = await supabase
+  const { error: snapshotError } = await adminSupabase
     .from("room_questions")
     .insert(snapshot);
 
