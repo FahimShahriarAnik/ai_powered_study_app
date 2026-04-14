@@ -232,12 +232,11 @@ export function CourseChatSheet({
       {/* Trigger (only rendered when not controlled externally) */}
       {!controlled && (
         <Button
-          variant="outline"
           size="sm"
-          className="gap-2"
+          className="gap-2 shadow-sm"
           onClick={() => setSheetOpen(true)}
         >
-          <MessageSquare className="h-4 w-4" />
+          <Bot className="h-4 w-4" />
           Chat with AI
         </Button>
       )}
