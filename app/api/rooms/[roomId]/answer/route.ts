@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+const BASE_POINTS = 10;
+const MAX_BONUS = 10;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ roomId: string }> }
@@ -27,7 +30,6 @@ export async function POST(
     );
   }
 
-  // Verify room state
   const { data: room } = await supabase
     .from("quiz_rooms")
     .select("*")
@@ -47,7 +49,11 @@ export async function POST(
     );
   }
 
-  // Verify participant
+  // Reject if the game hasn't started yet (still in countdown)
+  if (room.question_started_at && new Date(room.question_started_at).getTime() > Date.now()) {
+    return NextResponse.json({ error: "Game hasn't started yet" }, { status: 409 });
+  }
+
   const { data: participant } = await supabase
     .from("room_participants")
     .select("id, score")
@@ -59,14 +65,14 @@ export async function POST(
     return NextResponse.json({ error: "Not a participant" }, { status: 403 });
   }
 
-  // Get the question's correct_index (server-side only)
   const { data: questions } = await supabase
     .from("questions")
     .select("id, correct_index, position")
     .eq("quiz_id", room.quiz_id)
     .order("position", { ascending: true });
 
-  const question = (questions ?? [])[questionIndex];
+  const allQuestions = questions ?? [];
+  const question = allQuestions[questionIndex];
   if (!question) {
     return NextResponse.json({ error: "Question not found" }, { status: 404 });
   }
@@ -83,7 +89,6 @@ export async function POST(
   });
 
   if (insertError) {
-    // Unique constraint violation = already answered
     if (insertError.code === "23505") {
       return NextResponse.json({ error: "Already answered" }, { status: 409 });
     }
@@ -93,13 +98,22 @@ export async function POST(
     );
   }
 
-  // Update participant score if correct
+  let points = 0;
   if (isCorrect) {
+    // Time-based bonus: remaining total time / total duration → 0–MAX_BONUS extra pts
+    const gameStartedAt = new Date(room.question_started_at!).getTime();
+    const totalDurationMs = allQuestions.length * room.question_duration_seconds * 1000;
+    const elapsed = Date.now() - gameStartedAt;
+    const remaining = Math.max(0, totalDurationMs - elapsed);
+    const timeFraction = remaining / totalDurationMs;
+    const timeBonus = Math.round(MAX_BONUS * timeFraction);
+
+    points = BASE_POINTS + timeBonus;
     await supabase
       .from("room_participants")
-      .update({ score: participant.score + 1 })
+      .update({ score: participant.score + points })
       .eq("id", participant.id);
   }
 
-  return NextResponse.json({ ok: true, isCorrect });
+  return NextResponse.json({ ok: true, isCorrect, points });
 }

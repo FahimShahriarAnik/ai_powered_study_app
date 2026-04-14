@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+const COUNTDOWN_SECONDS = 5;
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ roomId: string }> }
@@ -31,7 +33,6 @@ export async function POST(
     return NextResponse.json({ error: "Game already started" }, { status: 409 });
   }
 
-  // Check at least 1 participant (can start solo for testing)
   const { count } = await supabase
     .from("room_participants")
     .select("id", { count: "exact", head: true })
@@ -41,13 +42,16 @@ export async function POST(
     return NextResponse.json({ error: "No participants" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  // Set game_started_at to now + COUNTDOWN_SECONDS so both clients
+  // show the rules/countdown screen simultaneously before play begins.
+  const gameStartsAt = new Date(Date.now() + COUNTDOWN_SECONDS * 1000).toISOString();
+
   const { error } = await supabase
     .from("quiz_rooms")
     .update({
       status: "active",
       current_question: 0,
-      question_started_at: now,
+      question_started_at: gameStartsAt,
     })
     .eq("id", roomId);
 

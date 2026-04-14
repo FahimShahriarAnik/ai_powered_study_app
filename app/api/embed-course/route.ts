@@ -4,8 +4,8 @@ import { google } from "@ai-sdk/google";
 import { embedMany } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// gemini-embedding-001: stable, 3072-dim
-const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
+// gemini-embedding-002: fresh quota, drop-in replacement
+const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-002");
 
 const MAX_TEXT_CHARS = 15_000; // per material
 const CHUNK_SIZE = 1_500;

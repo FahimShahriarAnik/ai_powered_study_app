@@ -199,9 +199,9 @@ export function RoomsHub({ quizOptions }: Props) {
         <p className="text-xs font-medium text-foreground mb-1">How it works</p>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li>• Host creates a room and shares the 6-letter code</li>
-          <li>• Guest joins using the code — up to 2 players</li>
-          <li>• Answer each question in 30 seconds — race to score</li>
-          <li>• Host controls when to start and advance questions</li>
+          <li>• Guest joins — both players see a 5-second countdown together</li>
+          <li>• Race through all questions before the total timer runs out</li>
+          <li>• Correct answers earn 10–20 pts — answer fast for a bigger bonus</li>
         </ul>
       </div>
     </div>

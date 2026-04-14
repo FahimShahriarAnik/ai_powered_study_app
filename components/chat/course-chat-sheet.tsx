@@ -284,7 +284,7 @@ export function CourseChatSheet({
           onClick={() => setSheetOpen(true)}
         >
           <Bot className="h-4 w-4" />
-          Chat with AI
+          AI Study Coach
         </Button>
       )}
 

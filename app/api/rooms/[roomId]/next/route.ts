@@ -35,12 +35,12 @@ export async function POST(
   if (room.status !== "active") {
     return NextResponse.json({ error: "Game not active" }, { status: 409 });
   }
-  // Idempotency: if already advanced, return OK
+  // Idempotency: already advanced
   if (room.current_question !== fromQuestion) {
     return NextResponse.json({ ok: true, alreadyAdvanced: true });
   }
 
-  // Get correct_index for the current question (to add to revealed_answers)
+  // Get correct_index for revealed_answers
   const { data: questions } = await supabase
     .from("questions")
     .select("id, correct_index, position")
@@ -50,7 +50,6 @@ export async function POST(
   const allQuestions = questions ?? [];
   const currentQuestion = allQuestions[fromQuestion];
 
-  // Build updated revealed_answers
   const updatedRevealed = {
     ...room.revealed_answers,
     [String(fromQuestion)]: currentQuestion?.correct_index ?? 0,
@@ -59,13 +58,13 @@ export async function POST(
   const nextQuestion = fromQuestion + 1;
   const isLastQuestion = nextQuestion >= allQuestions.length;
 
-  const now = new Date().toISOString();
+  // NOTE: question_started_at is the game start time (set once when game starts).
+  // We do NOT update it here — the total timer runs from that fixed timestamp.
   const { error } = await supabase
     .from("quiz_rooms")
     .update({
       revealed_answers: updatedRevealed,
       current_question: isLastQuestion ? fromQuestion : nextQuestion,
-      question_started_at: isLastQuestion ? null : now,
       status: isLastQuestion ? "finished" : "active",
     })
     .eq("id", roomId);

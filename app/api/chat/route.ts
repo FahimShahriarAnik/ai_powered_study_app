@@ -3,8 +3,8 @@ import { google } from "@ai-sdk/google";
 import { embed, streamText } from "ai";
 import { NextRequest } from "next/server";
 
-// gemini-embedding-001: stable, 3072-dim, supports embedContent
-const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-001");
+// gemini-embedding-002: fresh quota, drop-in replacement
+const EMBEDDING_MODEL = google.textEmbeddingModel("gemini-embedding-002");
 
 const MATCH_COUNT = 5; // number of relevant chunks to retrieve
 
