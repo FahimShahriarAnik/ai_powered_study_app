@@ -10,7 +10,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Bot, Loader2, Send, User } from "lucide-react";
@@ -66,12 +65,13 @@ export function CourseChatSheet({
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Auto-scroll on new content
+  // Auto-scroll to bottom on new content
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Fetch materials and select all by default when sheet opens
@@ -106,6 +106,13 @@ export function CourseChatSheet({
       }
       return next;
     });
+  }
+
+  function toggleAll() {
+    const allSelected = materialOptions.every((m) => selectedMaterialIds.has(m.id));
+    setSelectedMaterialIds(
+      allSelected ? new Set() : new Set(materialOptions.map((m) => m.id))
+    );
   }
 
   // ── Streaming chat ──────────────────────────────────────────────────────────
@@ -247,30 +254,50 @@ export function CourseChatSheet({
           {/* Body */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Material filter pills */}
-            {materialOptions.length > 1 && (
-              <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
-                {materialOptions.map((m) => {
-                  const active = selectedMaterialIds.has(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => toggleMaterial(m.id)}
-                      className={cn(
-                        "max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                        active
-                          ? "border-primary bg-primary/10 text-foreground"
-                          : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
-                      )}
-                      title={m.title}
-                    >
-                      {m.title}
-                    </button>
-                  );
-                })}
+            {materialOptions.length > 0 && (
+              <div className="border-b border-border px-4 py-2.5">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] text-muted-foreground">
+                    {selectedMaterialIds.size}/{materialOptions.length} selected
+                  </span>
+                  <button
+                    onClick={toggleAll}
+                    className="text-[11px] font-medium text-primary hover:underline"
+                  >
+                    {materialOptions.every((m) => selectedMaterialIds.has(m.id))
+                      ? "Deselect all"
+                      : "Select all"}
+                  </button>
+                </div>
+                <div className="max-h-24 overflow-y-auto">
+                  <div className="flex flex-wrap gap-1.5">
+                    {materialOptions.map((m) => {
+                      const active = selectedMaterialIds.has(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleMaterial(m.id)}
+                          className={cn(
+                            "max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                            active
+                              ? "border-primary bg-primary/10 text-foreground"
+                              : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                          )}
+                          title={m.title}
+                        >
+                          {m.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
-            <ScrollArea className="flex-1 px-4 py-3">
+            <div
+              ref={messagesScrollRef}
+              className="flex-1 overflow-y-auto px-4 py-3"
+            >
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                   <Bot className="h-8 w-8 text-muted-foreground" />
@@ -328,7 +355,7 @@ export function CourseChatSheet({
                           ))
                         )}
                       </div>
-                      {/* Cited sources — only for assistant messages with sources */}
+                      {/* Cited sources */}
                       {msg.role === "assistant" &&
                         msg.sources &&
                         msg.sources.length > 0 &&
@@ -352,10 +379,8 @@ export function CourseChatSheet({
                 {streamError && (
                   <p className="text-xs text-destructive">{streamError}</p>
                 )}
-
-                <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+            </div>
 
             {/* Input */}
             <form
