@@ -81,7 +81,7 @@ export default async function RoomPage({
       initialRoom={room}
       initialParticipants={participants ?? []}
       initialCurrentAnswers={currentAnswers ?? []}
-      questions={sanitized}
+      initialQuestions={sanitized}
       myParticipantId={myParticipant.id}
       isHost={room.host_user_id === user.id}
     />

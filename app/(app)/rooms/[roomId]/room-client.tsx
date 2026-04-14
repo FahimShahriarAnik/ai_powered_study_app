@@ -34,7 +34,9 @@ interface Props {
   initialRoom: QuizRoom;
   initialParticipants: RoomParticipant[];
   initialCurrentAnswers: PartialAnswer[];
-  questions: SanitizedQuestion[];
+  /** May be empty for anonymous/guest users if RLS blocks questions SSR — the
+   *  poll will backfill from the admin-client-powered GET route on first fetch. */
+  initialQuestions: SanitizedQuestion[];
   myParticipantId: string;
   isHost: boolean;
 }
@@ -56,7 +58,7 @@ export function RoomClient({
   initialRoom,
   initialParticipants,
   initialCurrentAnswers,
-  questions,
+  initialQuestions,
   myParticipantId,
   isHost,
 }: Props) {
@@ -68,6 +70,9 @@ export function RoomClient({
   const [currentAnswers, setCurrentAnswers] = useState<PartialAnswer[]>(
     initialCurrentAnswers as PartialAnswer[]
   );
+  // questions may be empty on first render for guest/anonymous users (RLS blocks SSR).
+  // The poll backfills them from the admin-client API route on the first successful fetch.
+  const [questions, setQuestions] = useState<SanitizedQuestion[]>(initialQuestions);
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, number>>(
     initialRoom.revealed_answers ?? {}
   );
@@ -215,10 +220,16 @@ export function RoomClient({
         const json = await res.json() as {
           room: QuizRoom;
           participants: RoomParticipant[];
+          questions: SanitizedQuestion[];
           currentAnswers: PartialAnswer[];
         };
 
-        const { room: roomData, participants: pData, currentAnswers: caData } = json;
+        const { room: roomData, participants: pData, questions: qData, currentAnswers: caData } = json;
+
+        // Backfill questions if SSR returned empty (guest RLS issue)
+        if (qData.length > 0) {
+          setQuestions((prev) => (prev.length === 0 ? qData : prev));
+        }
 
         setRoom((prev) => {
           const changed =
@@ -681,7 +692,7 @@ export function RoomClient({
         </p>
 
         <div className="mt-4 space-y-2">
-          {currentQ.options.map((opt, idx) => {
+          {currentQ.options.map((opt: string, idx: number) => {
             const isSelected = myAnswerIndex === idx;
             const isRevealed = revealedCorrectIndex !== null;
             const isCorrectAnswer = isRevealed && revealedCorrectIndex === idx;

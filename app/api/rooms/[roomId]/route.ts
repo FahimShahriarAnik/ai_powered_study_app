@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import type { SanitizedQuestion } from "@/types/database";
 
@@ -7,8 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ roomId: string }> }
 ) {
   const { roomId } = await params;
-  const supabase = await createClient();
 
+  // Auth check via regular server client (reads the user's session cookie)
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -16,8 +18,13 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // All DB reads use the admin client to bypass RLS.
+  // This makes the endpoint work for both regular users and anonymous guests
+  // who would otherwise be blocked by RLS policies on quiz_rooms / questions.
+  const admin = createAdminClient();
+
   // Fetch room
-  const { data: room } = await supabase
+  const { data: room } = await admin
     .from("quiz_rooms")
     .select("*")
     .eq("id", roomId)
@@ -27,8 +34,8 @@ export async function GET(
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
-  // Verify user is a participant
-  const { data: participant } = await supabase
+  // Verify user is a participant (still enforce this as an access control gate)
+  const { data: participant } = await admin
     .from("room_participants")
     .select("*")
     .eq("room_id", roomId)
@@ -40,16 +47,18 @@ export async function GET(
   }
 
   // Fetch all participants
-  const { data: participants } = await supabase
+  const { data: participants } = await admin
     .from("room_participants")
     .select("*")
     .eq("room_id", roomId)
     .order("joined_at", { ascending: true });
 
-  // Fetch questions (strip correct_index — server enforces security)
-  const { data: questions } = await supabase
+  // Fetch questions — strip correct_index so it's safe to send to the client
+  const { data: questions } = await admin
     .from("questions")
-    .select("id, quiz_id, question, options, topic, difficulty, explanation, position, created_at")
+    .select(
+      "id, quiz_id, question, options, topic, difficulty, explanation, position, created_at"
+    )
     .eq("quiz_id", room.quiz_id)
     .order("position", { ascending: true });
 
@@ -65,17 +74,15 @@ export async function GET(
     created_at: q.created_at,
   }));
 
-  // Fetch answers for current question (so client knows who answered)
-  const { data: currentAnswers } = await supabase
+  // Fetch answers for current question
+  const { data: currentAnswers } = await admin
     .from("room_answers")
     .select("id, participant_id, question_index, is_correct, answered_at")
-    // Never send selected_index back — only reveal after question closes
     .eq("room_id", roomId)
     .eq("question_index", room.current_question);
 
   return NextResponse.json({
     room,
-    quiz: { id: room.quiz_id, question_count: sanitized.length },
     participants: participants ?? [],
     questions: sanitized,
     myParticipantId: participant.id,
