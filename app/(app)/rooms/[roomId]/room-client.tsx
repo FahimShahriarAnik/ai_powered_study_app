@@ -549,7 +549,7 @@ export function RoomClient({
   }
 
   // ─── Render: Waiting for opponent after finishing ─────────────────────────
-  if (myFinished && room.status !== "finished") {
+  if (myFinished) {
     const opponentDone = !!(opponent?.finished_at);
     return (
       <div className="mx-auto max-w-md p-6 flex flex-col items-center gap-6 text-center">

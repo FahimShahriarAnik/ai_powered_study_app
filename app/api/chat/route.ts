@@ -75,7 +75,7 @@ COURSE MATERIAL CONTEXT:
 ${contextBlock}`;
 
   const result = streamText({
-    model: google("gemini-2.0-flash"),
+    model: google("gemini-2.5-flash-preview-04-17"),
     system: systemPrompt,
     messages: messages.map((m) => ({
       role: m.role as "user" | "assistant",
