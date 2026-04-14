@@ -395,3 +395,39 @@ Entry format:
 - **Verification:** `npm run build` clean — 23 routes, TypeScript strict, Turbopack.
 - **Branch:** `phase-9-realtime-quiz-rooms`
 - **Commit:** `feat(phase-9): realtime competitive quiz rooms`
+
+---
+
+## [2026-04-14] — Phase 10: Feature Additions (confidence, smart quiz upgrade, retry wrong, cited sources, count picker)
+
+- **What was built:**
+  - **Confidence self-rating** — Optional 🤔/🤷/💡 buttons appear in quiz runner after each answer. Stored in `answer_records.confidence` (null = skipped). Analytics page gains a "Confidence Calibration" card showing overconfident (confident + wrong), underconfident (unsure + right), and well-calibrated %, hidden until ≥5 rated answers.
+  - **Smart Quiz overhaul** — Dialog replaced with multi-material checkbox list (grouped by course, min 1 required). Three preset buttons: Focus Weak (60/30/10), Balanced (40/40/20), Challenge (10/30/60). `planSmartQuiz()` accepts a `SmartQuizPreset` param. API accepts `materialIds[]` + `preset`; concatenates material texts with per-material cap. Quiz title now `Smart Quiz · Balanced` etc. (no raw filenames). Quiz runner header uses quiz title for adaptive quizzes.
+  - **Retry Wrong Answers** — Results page shows a "Retry Wrong (N)" primary button when any answers are wrong. Links to `?filter=wrong&fromAttempt=<id>`. Quiz runner page filters the quiz's questions to wrong-only and creates a scoped attempt (`total = wrongCount`).
+  - **Cited Sources in RAG chat** — Chat API resolves unique material titles for retrieved chunks (one extra Supabase SELECT, zero tokens). Titles delivered via `X-Sources` response header before streaming begins. Chat UI adds `sources?: string[]` to `ChatMessage` and renders "From: [Title]" beneath completed assistant bubbles.
+  - **Question count picker** — `GenerateQuizButton` gains a compact inline `<select>` (5Q/7Q/10Q/12Q/15Q, default 10). `SmartQuizDialog` gains pill-style count buttons. Both API routes bumped to `MAX_QUESTIONS = 15`; `lib/ai/schemas.ts` Zod `.max()` bumped from 10 → 15.
+- **Files created/modified:**
+  - `types/database.ts` — `answer_records.confidence: number | null` in Row/Insert/Update
+  - `lib/actions/attempts.ts` — accept + persist `confidence` per answer
+  - `lib/analytics/queries.ts` — `AnswerWithQuestion` + select includes `confidence`
+  - `lib/analytics/user-stats.ts` — `SmartQuizPreset` type, `PRESET_DISTRIBUTIONS` map, `planSmartQuiz(preset)` param, preset label in prompt context
+  - `lib/ai/schemas.ts` — `quizSchema` max 10 → 15
+  - `app/(app)/courses/[id]/quiz/[quizId]/quiz-runner.tsx` — confidence state + optional rating buttons
+  - `app/(app)/courses/[id]/quiz/[quizId]/page.tsx` — `difficulty` in select, `displayTitle` logic for adaptive quizzes, retry-wrong `searchParams` filter
+  - `app/(app)/courses/[id]/quiz/[quizId]/results/[attemptId]/results-client.tsx` — `wrongCount` + Retry Wrong button
+  - `app/(app)/analytics/page.tsx` — confidence stats + Confidence Calibration card
+  - `app/api/generate-quiz/route.ts` — `MAX_QUESTIONS = 15`
+  - `app/api/generate-smart-quiz/route.ts` — `MAX_QUESTIONS = 15`, `materialIds[]` + `preset` params, multi-material text concat, clean quiz title
+  - `app/api/chat/route.ts` — resolve source material titles, `X-Sources` header
+  - `components/quiz/generate-quiz-button.tsx` — count `<select>` (5/7/10/12/15)
+  - `components/quiz/smart-quiz-dialog.tsx` — full rewrite: multi-material checkboxes, preset pills, count pills
+  - `components/chat/course-chat-sheet.tsx` — `sources` field on `ChatMessage`, read `X-Sources` header, render "From:" row
+- **DB migration required:**
+  ```sql
+  ALTER TABLE answer_records ADD COLUMN IF NOT EXISTS confidence integer;
+  -- 1=Unsure, 2=Maybe, 3=Confident, null=not rated
+  ```
+- **Autonomous decisions:** See `docs/BACKLOG.md` Phase 10 section.
+- **Known issues / TODOs:** Confidence calibration card only appears after ≥5 rated answers — early demo sessions may not show it. Confidence toggling uses value `0` client-side as "deselected" sentinel (stored as null).
+- **Verification:** `npx tsc --noEmit` clean; `next build` clean.
+- **Commit:** `feat: confidence rating, smart quiz presets + multi-material, retry wrong, cited sources, count picker`

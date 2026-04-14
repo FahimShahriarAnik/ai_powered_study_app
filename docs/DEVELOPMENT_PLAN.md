@@ -2,7 +2,7 @@
 
 > Phases are sequential. Do NOT start a phase until the previous one is committed and confirmed working.
 
-## Current Status (as of 2026-04-14)
+## Current Status (as of 2026-04-14 — Phase 10 in progress)
 
 | Phase | Status | Commit |
 |---|---|---|
@@ -17,7 +17,7 @@
 | 8 — RAG Study Coach | Done | (phase-8-rag-study-coach branch) |
 | 9 — Collaborative Quiz Rooms | Done | (phase-9-realtime-quiz-rooms branch) |
 | Pre-10 Polish | Done | `3de8355`, `b66e87f`, `6b67281` |
-| 10 — Polish & Demo Prep | In Progress | — |
+| 10 — Polish & Demo Prep | In Progress | see Phase 10 log entries |
 
 **Deviations from original plan (carry forward):**
 - **Phase 2:** shipped email + guest only. Google OAuth dropped (not required for demo; revisit if time permits).
@@ -29,6 +29,13 @@
 - Reader/accessible theme added (warm sepia palette); system theme dropped; toggle cycles light → dark → reader — **fixed pre-Phase 10** (`6b67281`).
 - Global `cursor:pointer` rule added for all interactive elements — **fixed pre-Phase 10** (`6b67281`).
 - Sidebar nav and toggle icons bumped for accessibility — **fixed pre-Phase 10** (`6b67281`).
+- **Phase 10 additions (2026-04-14):**
+  - Confidence self-rating (optional 🤔/🤷/💡 buttons in quiz runner) + overconfidence analytics card.
+  - Smart Quiz upgraded: multi-material checkbox select + 3 presets (Focus Weak 60/30/10, Balanced 40/40/20, Challenge 10/30/60) + title no longer exposes raw filename.
+  - Retry Wrong Answers: results page button + quiz page `?filter=wrong` logic.
+  - Cited Sources in RAG chat: material titles delivered via `X-Sources` header, rendered beneath assistant bubbles.
+  - Question count picker (5/7/10/12/15) on both regular quiz button and Smart Quiz dialog.
+  - **DB migration required:** `ALTER TABLE answer_records ADD COLUMN IF NOT EXISTS confidence integer;`
 
 ## Folder Structure (actual, as of Phase 7)
 

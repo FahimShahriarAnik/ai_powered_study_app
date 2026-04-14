@@ -33,6 +33,31 @@ _(populated as phases progress)_
 
 ---
 
+## Phase 10 — Feature Additions (2026-04-14)
+
+- [x] **Confidence self-rating** — Optional 🤔/🤷/💡 buttons in quiz runner after answer selected. Stored as `answer_records.confidence` (null = not rated). Analytics page shows Confidence Calibration card (overconfident / underconfident / well-calibrated) once ≥5 rated answers exist. **DB migration:** `ALTER TABLE answer_records ADD COLUMN IF NOT EXISTS confidence integer;`
+- [x] **Retry Wrong Answers** — Results page shows "Retry Wrong (N)" button when score < 100%. Links to `/quiz/[id]?filter=wrong&fromAttempt=<id>`; quiz page filters questions to wrong-only and creates a correctly-scoped attempt.
+- [x] **Question count picker** — Both `GenerateQuizButton` and `SmartQuizDialog` now expose a count selector (5 / 7 / 10 / 12 / 15). `lib/ai/schemas.ts` max bumped from 10 → 15; both API routes `MAX_QUESTIONS = 15`.
+- [x] **Smart Quiz title fix** — Quiz title is now `Smart Quiz · {Preset}` (no raw material filenames). Quiz runner header uses quiz title for adaptive quizzes, material title for regular quizzes.
+
+---
+
+## Phase 10 — Autonomous Decisions Log
+
+| Decision | Rationale |
+|---|---|
+| Confidence stored as `integer` (1/2/3) not `enum` | Simple to query ranges; avoids a Postgres enum migration |
+| Confidence value `0` treated as "deselected" client-side, stored as `null` | Lets user toggle off a rating; `null` = not rated in all analytics queries |
+| Confidence calibration card hidden below 5 rated answers | Avoids noisy single-sample percentages on new accounts |
+| Retry wrong: creates a new attempt with `total = wrongCount` | Consistent with existing attempt model; score and analytics work correctly for the subset |
+| Retry wrong: quiz page double-checks `fromAttempt` question IDs after the normal questions fetch | Avoids a separate questions-by-ids query; filtering is O(n) in memory on the already-fetched set |
+| Multi-material smart quiz uses first material as `material_id` FK | Schema requires a single `material_id`; changing schema would need a migration. Primary material is used for rate-limiting too. Acceptable for demo. |
+| Per-material text cap = `max(15000 / n, 5000)` | Keeps combined context within Gemini's effective window; guarantees ≥5k chars per material so no material is effectively excluded |
+| Cited sources via `X-Sources` response header | Headers are sent before streaming body — zero latency penalty. No SDK envelope needed. Cost = one small Supabase SELECT on unique material IDs (already in memory). |
+| Question counts: 5 / 7 / 10 / 12 / 15 (not continuous 5–15) | Round numbers that feel intentional; avoids 11/13/14 which feel arbitrary in a demo |
+
+---
+
 ## Phase 6 — Analytics UI Issues (fix in Phase 10 polish)
 
 - [ ] **Topic accuracy chart — Y-axis label overlap** — topic names overlap when there are many topics. Fix: increase chart height dynamically based on topic count, or truncate + tooltip on hover.
@@ -48,13 +73,14 @@ _(populated as phases progress)_
 
 ---
 
-## Phase 7 — Known TODOs / Polish items (defer to Phase 10)
+## Phase 7 — Known TODOs / Polish items
 
 - [ ] **`"adaptive"` difficulty badge color** — `QuizPreviewCard` DIFF_COLORS map doesn't include `adaptive`; it falls through to the `mixed` blue. Add a distinct color (e.g. violet) to visually signal Smart-Quiz-authored quizzes.
-- [ ] **Surface the weak/medium/strong plan in UI** — The API returns `plan: { weakCount, mediumCount, strongCount, fallback }` but the UI doesn't show it. Could render a tiny pill in the dialog after generation ("This quiz: 6 weak · 3 medium · 1 strong"). Good demo-tell for judges.
 - [ ] **Analytics-page "jump to weakest topic"** — The CTA in the insights card is material-picker based. A nicer flow would pre-filter materials to those whose past questions hit the user's weakest topic. Requires extra query (quiz → material) joined on questions.topic.
 - [ ] **Different rate-limit for Smart Quiz** — Currently shares the 60s/material quiz rate limit. Consider a per-user global rate limit (e.g. 1 smart quiz / 2 min) since Smart Quiz costs more tokens than a regular quiz.
-- [ ] **User-controlled weak/medium/strong mix** — Let the user adjust the 60/30/10 distribution in the Smart Quiz dialog (e.g. three sliders or a simple preset selector: "Focus weak", "Balanced", "Challenge me"). Current split is hardcoded in `lib/analytics/user-stats.ts` `planSmartQuiz()`. Pass the chosen counts through the API body and thread them through `planSmartQuiz` / `buildSmartQuizPromptContext`. UX note: sliders should be constrained to sum = `questionCount` and each bucket should have a minimum of 0.
+- [x] **User-controlled weak/medium/strong mix** — **Done (Phase 10).** Three presets in `SmartQuizDialog`: Focus Weak (60/30/10), Balanced (40/40/20), Challenge (10/30/60). `planSmartQuiz()` accepts a `SmartQuizPreset` param.
+- [x] **Surface the weak/medium/strong plan in UI** — **Done (Phase 10).** Preset label baked into quiz title (`Smart Quiz · Balanced` etc.) and shown in dialog selector. Raw material filename no longer appears as the quiz header.
+- [x] **Multi-material Smart Quiz** — **Done (Phase 10).** Dialog now shows a checkbox list grouped by course; API accepts `materialIds[]` and concatenates material text with per-material cap (`max(MAX_TEXT / n, 5000)` chars each).
 
 ---
 
@@ -92,14 +118,14 @@ _(populated as phases progress)_
 
 ---
 
-## Phase 8 — RAG Study Coach: Known TODOs / Polish items (defer to Phase 10)
+## Phase 8 — RAG Study Coach: Known TODOs / Polish items
 
 - [ ] **Re-embed on new material upload** — Currently the user must manually click "Re-index" (RefreshCw button) to embed new materials added after the initial index. Could auto-trigger embedding after a successful upload.
 - [ ] **Per-material embedding status** — Currently all materials in a course are embedded together; no indication of which materials are indexed. A per-material "Indexed / Not indexed" badge would improve UX.
 - [ ] **Chat history persistence** — Chat history lives in component state; it resets when the sheet closes. Persisting to `localStorage` (keyed by course id) would let users pick up where they left off.
 - [ ] **Stream abort on sheet close** — The `AbortController` cancels in-flight requests, but the component doesn't explicitly call `abort()` on unmount. This is benign (the stream will terminate) but could be made explicit.
 - [ ] **Markdown rendering** — Assistant responses are rendered as plain text with `<br>` line breaks. Using a lightweight Markdown renderer (e.g. `marked` + `DOMPurify`) would make bullet lists, code blocks, etc. render correctly.
-- [ ] **Cited sources** — Attach `material_id` / chunk metadata to the assistant response so the UI can show "From: [Material Title]" beneath each answer.
+- [x] **Cited sources** — **Done (Phase 10).** `X-Sources` response header carries material titles (zero extra tokens). Chat UI renders "From: [Material Title]" beneath each assistant bubble.
 - [ ] **Chunk size tuning** — Current defaults (500 chars, 100 overlap) are conservative. Larger chunks (1000–1500 chars) may give better semantic coherence at the cost of more noise per chunk.
 
 ---
